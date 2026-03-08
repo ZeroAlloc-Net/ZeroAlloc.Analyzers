@@ -1,6 +1,7 @@
 <Solution>
   <Folder Name="/src/">
     <Project Path="src/ZeroAlloc.Analyzers.CodeFixes/ZeroAlloc.Analyzers.CodeFixes.csproj" />
+    <Project Path="src/ZeroAlloc.Analyzers.Package/ZeroAlloc.Analyzers.Package.csproj" />
     <Project Path="src/ZeroAlloc.Analyzers/ZeroAlloc.Analyzers.csproj" />
   </Folder>
   <Folder Name="/tests/">
