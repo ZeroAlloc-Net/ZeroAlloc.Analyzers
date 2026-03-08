@@ -7,8 +7,7 @@
     <SuppressDependenciesWhenPacking>true</SuppressDependenciesWhenPacking>
     <DevelopmentDependency>true</DevelopmentDependency>
 
-    <!-- Note: PackageId intentionally matches project name to avoid NuGet ambiguity with ZeroAlloc.Analyzers project -->
-    <PackageId>ZeroAlloc.Analyzers.Package</PackageId>
+    <PackageId>ZeroAlloc.Analyzers</PackageId>
     <Title>ZeroAlloc Analyzers</Title>
     <Description>Roslyn analyzers for modern .NET performance patterns with multi-TFM awareness</Description>
     <Authors>Marcel Roozekrans</Authors>
