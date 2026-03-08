@@ -1,2 +1,5 @@
 <Solution>
+  <Folder Name="/src/">
+    <Project Path="src/ZeroAlloc.Analyzers/ZeroAlloc.Analyzers.csproj" />
+  </Folder>
 </Solution>
