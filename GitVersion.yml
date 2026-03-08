@@ -1,17 +1,15 @@
-workflow: TrunkBased
 next-version: 1.0.0
+mode: ContinuousDeployment
 major-version-bump-message: "^(feat|fix|refactor|perf)(\\(.*\\))?!:|BREAKING CHANGE"
 minor-version-bump-message: "^feat(\\(.*\\))?:"
 patch-version-bump-message: "^(fix|docs|test|ci|chore|refactor|perf)(\\(.*\\))?:"
 branches:
   main:
-    mode: ContinuousDeployment
     label: ''
     increment: Patch
     is-main-branch: true
     regex: ^master$|^main$
   feature:
-    mode: ContinuousDelivery
     label: '{BranchName}'
     increment: Minor
     regex: ^features?[/-](?<BranchName>.+)
