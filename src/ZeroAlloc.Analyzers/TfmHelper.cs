@@ -22,14 +22,17 @@ internal static class TfmHelper
     public static bool IsNetOrLater(string tfm, int majorVersion)
     {
         // Handles: net5.0, net6.0, net7.0, net8.0, net9.0, net10.0, etc.
+        // Excludes .NET Framework TFMs (net48, net472) which lack a dot after the version.
         if (tfm.StartsWith("net", StringComparison.OrdinalIgnoreCase)
             && !tfm.StartsWith("netstandard", StringComparison.OrdinalIgnoreCase)
             && !tfm.StartsWith("netcoreapp", StringComparison.OrdinalIgnoreCase))
         {
             var versionPart = tfm.Substring(3);
             var dotIndex = versionPart.IndexOf('.');
-            if (dotIndex > 0)
-                versionPart = versionPart.Substring(0, dotIndex);
+            // .NET Framework TFMs (net48, net472) have no dot — reject them
+            if (dotIndex <= 0)
+                return false;
+            versionPart = versionPart.Substring(0, dotIndex);
             // Also strip any suffix like -windows
             var dashIndex = versionPart.IndexOf('-');
             if (dashIndex > 0)

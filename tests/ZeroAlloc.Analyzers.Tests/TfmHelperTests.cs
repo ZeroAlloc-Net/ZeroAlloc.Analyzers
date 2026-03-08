@@ -10,6 +10,8 @@ public class TfmHelperTests
     [InlineData("net6.0", false)]
     [InlineData("netstandard2.0", false)]
     [InlineData("netcoreapp3.1", false)]
+    [InlineData("net48", false)]
+    [InlineData("net472", false)]
     public void IsNet8OrLater_ReturnsCorrectResult(string tfm, bool expected)
     {
         Assert.Equal(expected, TfmHelper.IsNet8OrLater(tfm));
@@ -21,6 +23,8 @@ public class TfmHelperTests
     [InlineData("net8.0-windows", true)]
     [InlineData("netstandard2.0", false)]
     [InlineData("netcoreapp3.1", false)]
+    [InlineData("net48", false)]
+    [InlineData("net472", false)]
     public void IsNet5OrLater_ReturnsCorrectResult(string tfm, bool expected)
     {
         Assert.Equal(expected, TfmHelper.IsNet5OrLater(tfm));
