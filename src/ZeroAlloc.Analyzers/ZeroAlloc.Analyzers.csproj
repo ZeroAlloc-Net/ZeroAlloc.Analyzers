@@ -5,6 +5,7 @@
     <EnforceExtendedAnalyzerRules>true</EnforceExtendedAnalyzerRules>
     <IsRoslynComponent>true</IsRoslynComponent>
     <IsPackable>false</IsPackable>
+    <PackageId>ZeroAlloc.Analyzers.Lib</PackageId>
   </PropertyGroup>
 
   <ItemGroup>
