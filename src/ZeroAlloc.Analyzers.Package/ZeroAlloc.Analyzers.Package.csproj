@@ -1,0 +1,54 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>netstandard2.0</TargetFramework>
+    <IsPackable>true</IsPackable>
+    <IncludeBuildOutput>false</IncludeBuildOutput>
+    <SuppressDependenciesWhenPacking>true</SuppressDependenciesWhenPacking>
+    <DevelopmentDependency>true</DevelopmentDependency>
+
+    <!-- Note: PackageId intentionally matches project name to avoid NuGet ambiguity with ZeroAlloc.Analyzers project -->
+    <PackageId>ZeroAlloc.Analyzers.Package</PackageId>
+    <Title>ZeroAlloc Analyzers</Title>
+    <Description>Roslyn analyzers for modern .NET performance patterns with multi-TFM awareness</Description>
+    <Authors>Marcel Roozekrans</Authors>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageTags>analyzers;roslyn;performance;dotnet;frozen-dictionary;stackalloc;array-pool</PackageTags>
+    <RepositoryUrl>https://github.com/MarcelRoozekrans/zeroalloc-analyzers</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <NoPackageAnalysis>true</NoPackageAnalysis>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\ZeroAlloc.Analyzers\ZeroAlloc.Analyzers.csproj" PrivateAssets="all" />
+    <ProjectReference Include="..\ZeroAlloc.Analyzers.CodeFixes\ZeroAlloc.Analyzers.CodeFixes.csproj" PrivateAssets="all" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="..\..\README.md" Pack="true" PackagePath="\" />
+  </ItemGroup>
+
+  <!-- Pack analyzer DLLs into analyzers/dotnet/cs/ -->
+  <ItemGroup>
+    <None Include="$(OutputPath)\ZeroAlloc.Analyzers.dll"
+          Pack="true"
+          PackagePath="analyzers/dotnet/cs"
+          Visible="false" />
+    <None Include="$(OutputPath)\ZeroAlloc.Analyzers.CodeFixes.dll"
+          Pack="true"
+          PackagePath="analyzers/dotnet/cs"
+          Visible="false" />
+  </ItemGroup>
+
+  <!-- Include .props for CompilerVisibleProperty -->
+  <ItemGroup>
+    <None Include="buildTransitive\ZeroAlloc.Analyzers.props"
+          Pack="true"
+          PackagePath="buildTransitive\" />
+    <None Include="buildTransitive\ZeroAlloc.Analyzers.props"
+          Pack="true"
+          PackagePath="build\" />
+  </ItemGroup>
+
+</Project>
