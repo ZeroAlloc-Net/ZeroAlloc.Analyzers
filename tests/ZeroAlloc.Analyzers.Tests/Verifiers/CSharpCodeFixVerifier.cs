@@ -32,7 +32,7 @@ public static class CSharpCodeFixVerifier<TAnalyzer, TCodeFix>
                 build_property.TargetFramework = {targetFramework}
                 """));
 
-        test.ExpectedDiagnostics.Add(Diagnostic(diagnosticId));
+        test.ExpectedDiagnostics.Add(Diagnostic(diagnosticId).WithLocation(0));
         await test.RunAsync();
     }
 }
