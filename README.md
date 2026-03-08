@@ -2,12 +2,10 @@
 
 Roslyn analyzers for modern .NET performance patterns with multi-TFM awareness. Detects allocation-heavy patterns that existing analyzers miss and suggests zero/low-allocation alternatives.
 
-> **Work in progress** — not yet published to NuGet.
-
 ## Installation
 
 ```xml
-<PackageReference Include="ZeroAlloc.Analyzers.Package" Version="1.0.0" PrivateAssets="all" />
+<PackageReference Include="ZeroAlloc.Analyzers" Version="1.0.0" PrivateAssets="all" />
 ```
 
 ## Rules
