@@ -14,7 +14,8 @@
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <PackageTags>analyzers;roslyn;performance;dotnet;frozen-dictionary;stackalloc;array-pool</PackageTags>
-    <RepositoryUrl>https://github.com/MarcelRoozekrans/zeroalloc-analyzers</RepositoryUrl>
+    <RepositoryUrl>https://github.com/MarcelRoozekrans/ZeroAlloc</RepositoryUrl>
+    <PackageProjectUrl>https://github.com/MarcelRoozekrans/ZeroAlloc</PackageProjectUrl>
     <RepositoryType>git</RepositoryType>
     <NoPackageAnalysis>true</NoPackageAnalysis>
   </PropertyGroup>
