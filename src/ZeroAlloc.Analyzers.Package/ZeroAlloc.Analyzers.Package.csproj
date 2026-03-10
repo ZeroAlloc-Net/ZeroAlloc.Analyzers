@@ -13,6 +13,7 @@
     <Authors>Marcel Roozekrans</Authors>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageIcon>icon.png</PackageIcon>
     <PackageTags>analyzers;roslyn;performance;dotnet;frozen-dictionary;stackalloc;array-pool</PackageTags>
     <RepositoryUrl>https://github.com/MarcelRoozekrans/ZeroAlloc</RepositoryUrl>
     <PackageProjectUrl>https://github.com/MarcelRoozekrans/ZeroAlloc</PackageProjectUrl>
@@ -27,6 +28,7 @@
 
   <ItemGroup>
     <None Include="..\..\README.md" Pack="true" PackagePath="\" />
+    <None Include="..\..\assets\icon.png" Pack="true" PackagePath="\" />
   </ItemGroup>
 
   <!-- Pack analyzer DLLs into analyzers/dotnet/cs/ -->
