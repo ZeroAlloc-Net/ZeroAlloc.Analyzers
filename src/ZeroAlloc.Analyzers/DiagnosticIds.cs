@@ -10,6 +10,7 @@ public static class DiagnosticIds
     public const string UseTryGetValue = "ZA0105";
     public const string AvoidPrematureToList = "ZA0106";
     public const string PreSizeCollections = "ZA0107";
+    public const string AvoidRedundantMaterialization = "ZA0108";
 
     // ZA02xx — Strings
     public const string AvoidStringConcatInLoop = "ZA0201";
@@ -18,6 +19,7 @@ public static class DiagnosticIds
     public const string UseStringCreate = "ZA0204";
     public const string UseCompositeFormat = "ZA0205";
     public const string AvoidSpanToStringBeforeParse = "ZA0206";
+    public const string AvoidStringJoinBoxingOverload = "ZA0208";
 
     // ZA03xx — Memory
     public const string UseStackalloc = "ZA0301";
@@ -38,6 +40,7 @@ public static class DiagnosticIds
     public const string UseCountProperty = "ZA0603";
     public const string UseCountOverAny = "ZA0604";
     public const string UseIndexerOverLinqFirst = "ZA0605";
+    public const string AvoidForeachOverInterfaceCollection = "ZA0606";
 
     // ZA07xx — Regex
     public const string UseGeneratedRegex = "ZA0701";
