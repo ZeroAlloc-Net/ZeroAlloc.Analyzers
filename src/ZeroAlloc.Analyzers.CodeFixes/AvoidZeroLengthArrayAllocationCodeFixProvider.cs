@@ -57,7 +57,9 @@ public sealed class AvoidZeroLengthArrayAllocationCodeFixProvider : CodeFixProvi
 
         // Add `using System;` if not present
         var compilationUnit = (CompilationUnitSyntax)newRoot;
-        var hasSystemUsing = compilationUnit.Usings.Any(u => u.Name?.ToString() == "System");
+        var hasSystemUsing = compilationUnit.Usings.Any(u => u.Name?.ToString() == "System")
+            || compilationUnit.Members.OfType<BaseNamespaceDeclarationSyntax>()
+                .Any(ns => ns.Usings.Any(u => u.Name?.ToString() == "System"));
         if (!hasSystemUsing)
         {
             var usingDirective = SyntaxFactory.UsingDirective(SyntaxFactory.IdentifierName("System"))
