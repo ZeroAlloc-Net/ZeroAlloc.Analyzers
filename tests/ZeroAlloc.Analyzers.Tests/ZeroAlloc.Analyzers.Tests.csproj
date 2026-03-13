@@ -19,8 +19,19 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- Library references for type access in test code -->
     <ProjectReference Include="..\..\src\ZeroAlloc.Analyzers\ZeroAlloc.Analyzers.csproj" />
     <ProjectReference Include="..\..\src\ZeroAlloc.Analyzers.CodeFixes\ZeroAlloc.Analyzers.CodeFixes.csproj" />
+    <!-- Analyzer references so the rules run on this project's own code -->
+    <ProjectReference Include="..\..\src\ZeroAlloc.Analyzers\ZeroAlloc.Analyzers.csproj"
+                      OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="..\..\src\ZeroAlloc.Analyzers.CodeFixes\ZeroAlloc.Analyzers.CodeFixes.csproj"
+                      OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Flow TargetFramework to the analyzer so TFM-gated rules work correctly -->
+    <CompilerVisibleProperty Include="TargetFramework" />
   </ItemGroup>
 
   <ItemGroup>

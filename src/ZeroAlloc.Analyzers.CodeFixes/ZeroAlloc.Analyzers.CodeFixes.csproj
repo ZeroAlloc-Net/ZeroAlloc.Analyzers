@@ -11,7 +11,15 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- Library reference for type access -->
     <ProjectReference Include="..\ZeroAlloc.Analyzers\ZeroAlloc.Analyzers.csproj" />
+    <!-- Analyzer reference so the rules run on this project's own code -->
+    <ProjectReference Include="..\ZeroAlloc.Analyzers\ZeroAlloc.Analyzers.csproj"
+                      OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <CompilerVisibleProperty Include="TargetFramework" />
   </ItemGroup>
 
 </Project>
