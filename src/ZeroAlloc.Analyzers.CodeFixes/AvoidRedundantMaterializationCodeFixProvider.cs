@@ -21,9 +21,9 @@ public sealed class AvoidRedundantMaterializationCodeFixProvider : CodeFixProvid
 
         var diagnostic = context.Diagnostics[0];
         var node = root.FindNode(diagnostic.Location.SourceSpan);
-
-        var invocation = node.FirstAncestorOrSelf<InvocationExpressionSyntax>();
-        if (invocation is null) return;
+        // The diagnostic is on the method name token; walk up to the invocation
+        if (node.Parent?.Parent is not InvocationExpressionSyntax invocation)
+            return;
 
         context.RegisterCodeFix(
             CodeAction.Create(
