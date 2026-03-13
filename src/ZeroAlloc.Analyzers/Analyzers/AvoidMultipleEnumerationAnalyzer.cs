@@ -31,6 +31,8 @@ public sealed class AvoidMultipleEnumerationAnalyzer : DiagnosticAnalyzer
         context.RegisterSyntaxNodeAction(AnalyzeMethodBody, SyntaxKind.MethodDeclaration);
     }
 
+    // Known limitation: if a local is reassigned between two foreach loops (query = GetNewSequence()),
+    // ZA0607 will still report. Full data-flow analysis would be required to suppress these cases.
     private static void AnalyzeMethodBody(SyntaxNodeAnalysisContext context)
     {
         var method = (MethodDeclarationSyntax)context.Node;

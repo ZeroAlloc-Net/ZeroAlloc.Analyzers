@@ -144,6 +144,32 @@ public class ZA0607_AvoidMultipleEnumerationTests
     }
 
     [Fact]
+    public async Task IQueryableLocalForeachTwice_Reports()
+    {
+        var source = """
+            using System.Linq;
+
+            class C
+            {
+                void M(IQueryable<int> source)
+                {
+                    IQueryable<int> query = source;
+                    foreach (var x in query) { }
+                    foreach (var x in {|#0:query|}) { }
+                }
+            }
+            """;
+
+        var expected = CSharpAnalyzerVerifier<AvoidMultipleEnumerationAnalyzer>
+            .Diagnostic(DiagnosticIds.AvoidMultipleEnumeration)
+            .WithLocation(0)
+            .WithArguments("query");
+
+        await CSharpAnalyzerVerifier<AvoidMultipleEnumerationAnalyzer>
+            .VerifyAnalyzerAsync(source, "net8.0", expected);
+    }
+
+    [Fact]
     public async Task TwoDifferentLocals_NoDiagnostic()
     {
         var source = """
