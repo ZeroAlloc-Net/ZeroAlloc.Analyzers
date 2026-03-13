@@ -11,6 +11,7 @@ public static class DiagnosticIds
     public const string AvoidPrematureToList = "ZA0106";
     public const string PreSizeCollections = "ZA0107";
     public const string AvoidRedundantMaterialization = "ZA0108";
+    public const string AvoidZeroLengthArrayAllocation = "ZA0109";
 
     // ZA02xx — Strings
     public const string AvoidStringConcatInLoop = "ZA0201";
@@ -20,6 +21,7 @@ public static class DiagnosticIds
     public const string UseCompositeFormat = "ZA0205";
     public const string AvoidSpanToStringBeforeParse = "ZA0206";
     public const string AvoidStringJoinBoxingOverload = "ZA0208";
+    public const string AvoidValueTypeBoxingInStringConcat = "ZA0209";
 
     // ZA03xx — Memory
     public const string UseStackalloc = "ZA0301";
@@ -41,6 +43,7 @@ public static class DiagnosticIds
     public const string UseCountOverAny = "ZA0604";
     public const string UseIndexerOverLinqFirst = "ZA0605";
     public const string AvoidForeachOverInterfaceCollection = "ZA0606";
+    public const string AvoidMultipleEnumeration = "ZA0607";
 
     // ZA07xx — Regex
     public const string UseGeneratedRegex = "ZA0701";
@@ -59,6 +62,8 @@ public static class DiagnosticIds
     // ZA11xx — Async
     public const string ElideAsyncAwait = "ZA1101";
     public const string DisposeCancellationTokenSource = "ZA1102";
+    // ZA1103 reserved — PreferValueTaskOverTask (dropped: not statically detectable)
+    public const string AvoidSpanInAsyncMethod = "ZA1104";
 
     // ZA14xx — Delegates
     public const string UseStaticLambda = "ZA1401";
