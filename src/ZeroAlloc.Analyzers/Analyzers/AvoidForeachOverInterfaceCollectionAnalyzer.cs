@@ -73,7 +73,7 @@ public sealed class AvoidForeachOverInterfaceCollectionAnalyzer : DiagnosticAnal
 
         var typeName = namedType.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat);
         context.ReportDiagnostic(
-            Diagnostic.Create(Rule, declarator.Identifier.GetLocation(),
+            Diagnostic.Create(Rule, identifier.GetLocation(),
                 localSymbol.Name, typeName));
     }
 

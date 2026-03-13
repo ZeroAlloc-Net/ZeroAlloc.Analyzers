@@ -14,8 +14,8 @@ public class ZA0606_AvoidForeachOverInterfaceCollectionTests
             {
                 void M()
                 {
-                    IEnumerable<int> {|#0:items|} = new List<int> { 1, 2, 3 };
-                    foreach (var item in items) { }
+                    IEnumerable<int> items = new List<int> { 1, 2, 3 };
+                    foreach (var item in {|#0:items|}) { }
                 }
             }
             """;
@@ -39,8 +39,8 @@ public class ZA0606_AvoidForeachOverInterfaceCollectionTests
             {
                 void M()
                 {
-                    ICollection<int> {|#0:items|} = new List<int> { 1, 2, 3 };
-                    foreach (var item in items) { }
+                    ICollection<int> items = new List<int> { 1, 2, 3 };
+                    foreach (var item in {|#0:items|}) { }
                 }
             }
             """;
@@ -64,8 +64,8 @@ public class ZA0606_AvoidForeachOverInterfaceCollectionTests
             {
                 void M()
                 {
-                    IList<int> {|#0:items|} = new int[] { 1, 2, 3 };
-                    foreach (var item in items) { }
+                    IList<int> items = new int[] { 1, 2, 3 };
+                    foreach (var item in {|#0:items|}) { }
                 }
             }
             """;
@@ -89,8 +89,8 @@ public class ZA0606_AvoidForeachOverInterfaceCollectionTests
             {
                 void M()
                 {
-                    IReadOnlyCollection<int> {|#0:items|} = new List<int> { 1, 2, 3 };
-                    foreach (var item in items) { }
+                    IReadOnlyCollection<int> items = new List<int> { 1, 2, 3 };
+                    foreach (var item in {|#0:items|}) { }
                 }
             }
             """;
@@ -99,6 +99,56 @@ public class ZA0606_AvoidForeachOverInterfaceCollectionTests
             .Diagnostic(DiagnosticIds.AvoidForeachOverInterfaceCollection)
             .WithLocation(0)
             .WithArguments("items", "IReadOnlyCollection<int>");
+
+        await CSharpAnalyzerVerifier<AvoidForeachOverInterfaceCollectionAnalyzer>
+            .VerifyAnalyzerAsync(source, "net8.0", expected);
+    }
+
+    [Fact]
+    public async Task LocalVarIReadOnlyList_InitWithNewList_Reports()
+    {
+        var source = """
+            using System.Collections.Generic;
+
+            class C
+            {
+                void M()
+                {
+                    IReadOnlyList<int> items = new List<int> { 1, 2, 3 };
+                    foreach (var item in {|#0:items|}) { }
+                }
+            }
+            """;
+
+        var expected = CSharpAnalyzerVerifier<AvoidForeachOverInterfaceCollectionAnalyzer>
+            .Diagnostic(DiagnosticIds.AvoidForeachOverInterfaceCollection)
+            .WithLocation(0)
+            .WithArguments("items", "IReadOnlyList<int>");
+
+        await CSharpAnalyzerVerifier<AvoidForeachOverInterfaceCollectionAnalyzer>
+            .VerifyAnalyzerAsync(source, "net8.0", expected);
+    }
+
+    [Fact]
+    public async Task LocalVarIList_InitWithImplicitNew_Reports()
+    {
+        var source = """
+            using System.Collections.Generic;
+
+            class C
+            {
+                void M()
+                {
+                    IList<int> items = new List<int> { 1, 2, 3 };
+                    foreach (var item in {|#0:items|}) { }
+                }
+            }
+            """;
+
+        var expected = CSharpAnalyzerVerifier<AvoidForeachOverInterfaceCollectionAnalyzer>
+            .Diagnostic(DiagnosticIds.AvoidForeachOverInterfaceCollection)
+            .WithLocation(0)
+            .WithArguments("items", "IList<int>");
 
         await CSharpAnalyzerVerifier<AvoidForeachOverInterfaceCollectionAnalyzer>
             .VerifyAnalyzerAsync(source, "net8.0", expected);
