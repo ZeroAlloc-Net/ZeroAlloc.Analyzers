@@ -135,7 +135,7 @@ public class ZA1104_AvoidSpanInAsyncMethodTests
     [Fact]
     public async Task AsyncMethod_NoAwait_NoDiagnostic()
     {
-        // async without await — no crossing boundary; use Task.CompletedTask to avoid CS1998
+        // non-async Task-returning method — async keyword guard prevents false positive
         var source = """
             using System;
             using System.Threading.Tasks;
@@ -145,6 +145,33 @@ public class ZA1104_AvoidSpanInAsyncMethodTests
                 Task M(Span<byte> data)
                 {
                     return Task.CompletedTask;
+                }
+            }
+            """;
+
+        await CSharpAnalyzerVerifier<AvoidSpanInAsyncMethodAnalyzer>
+            .VerifyNoDiagnosticAsync(source, "net8.0");
+    }
+
+    [Fact]
+    public async Task SpanLocalInNestedNonAsyncLocalFunction_NoDiagnostic()
+    {
+        // A Span<T> local inside a nested synchronous local function should NOT be flagged —
+        // the local function has no await boundary of its own.
+        var source = """
+            using System;
+            using System.Threading.Tasks;
+
+            class C
+            {
+                async Task M()
+                {
+                    await Task.Delay(1);
+
+                    void Inner()
+                    {
+                        Span<byte> s = stackalloc byte[8];
+                    }
                 }
             }
             """;

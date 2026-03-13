@@ -54,10 +54,12 @@ public sealed class AvoidSpanInAsyncMethodAnalyzer : DiagnosticAnalyzer
             }
         }
 
-        // Check local variable declarations in method body
+        // Check local variable declarations in method body (not in nested local functions/lambdas)
         if (method.Body is null) return;
 
-        foreach (var localDecl in method.Body.DescendantNodes().OfType<LocalDeclarationStatementSyntax>())
+        foreach (var localDecl in method.Body.DescendantNodes(n =>
+            n is not LocalFunctionStatementSyntax and not LambdaExpressionSyntax)
+            .OfType<LocalDeclarationStatementSyntax>())
         {
             var typeSyntax = localDecl.Declaration.Type;
             var declaredType = context.SemanticModel.GetTypeInfo(typeSyntax, context.CancellationToken).Type;
