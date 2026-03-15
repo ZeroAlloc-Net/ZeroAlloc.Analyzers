@@ -1,5 +1,5 @@
 blank_issues_enabled: true
 contact_links:
   - name: Rule Documentation
-    url: https://github.com/MarcelRoozekrans/zeroalloc-analyzers/tree/main/docs/rules
+    url: https://github.com/ZeroAlloc-Net/ZeroAlloc.Analyzers/tree/main/docs/rules
     about: Browse documentation for all analyzer rules

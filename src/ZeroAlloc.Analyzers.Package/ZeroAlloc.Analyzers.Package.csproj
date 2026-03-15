@@ -15,8 +15,8 @@
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <PackageIcon>icon.png</PackageIcon>
     <PackageTags>analyzers;roslyn;performance;dotnet;frozen-dictionary;stackalloc;array-pool</PackageTags>
-    <RepositoryUrl>https://github.com/MarcelRoozekrans/ZeroAlloc</RepositoryUrl>
-    <PackageProjectUrl>https://github.com/MarcelRoozekrans/ZeroAlloc</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/ZeroAlloc-Net/ZeroAlloc.Analyzers</RepositoryUrl>
+    <PackageProjectUrl>https://github.com/ZeroAlloc-Net/ZeroAlloc.Analyzers</PackageProjectUrl>
     <RepositoryType>git</RepositoryType>
     <NoPackageAnalysis>true</NoPackageAnalysis>
   </PropertyGroup>
