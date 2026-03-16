@@ -1,3 +1,7 @@
+---
+slug: /
+---
+
 # Getting Started with ZeroAlloc.Analyzers
 
 ## What is ZeroAlloc.Analyzers?
