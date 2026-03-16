@@ -8,9 +8,28 @@ Collections are the most common source of avoidable allocations in .NET code. Th
 flowchart TD
     Q1{Is the collection\nread-only after init?}
     Q1 -->|Yes| Q2{Is it a Set?}
-    Q1 -->|No| MutableDict["Use Dictionary / List\n(mutable as needed)"]
-    Q2 -->|Yes| FrozenSet["FrozenSet&lt;T&gt;\nZA0102"]
-    Q2 -->|No| FrozenDict["FrozenDictionary&lt;K,V&gt;\nZA0101"]
+    Q1 -->|No| Q3{Do you know the\nfinal item count?}
+
+    Q2 -->|Yes| FrozenSet["ZA0102 — Use FrozenSet&lt;T&gt;"]
+    Q2 -->|No| FrozenDict["ZA0101 — Use FrozenDictionary&lt;K,V&gt;"]
+
+    Q3 -->|Yes| Capacity["ZA0107 — Pre-size the collection"]
+    Q3 -->|No| Q4{Iterating a List&lt;T&gt;\non a hot path?}
+
+    Q4 -->|Yes| AsSpan["ZA0103 — CollectionsMarshal.AsSpan"]
+    Q4 -->|No| Q5{Repeated char/byte\nlookup in a set?}
+
+    Q5 -->|Yes| SearchVals["ZA0104 — Use SearchValues&lt;T&gt;"]
+    Q5 -->|No| Q6{Dictionary lookup\nwith ContainsKey?}
+
+    Q6 -->|Yes| TryGet["ZA0105 — Use TryGetValue"]
+    Q6 -->|No| Q7{Calling ToList/ToArray\nbefore LINQ operators?}
+
+    Q7 -->|Yes| PrematureToList["ZA0106 — Remove premature materialization"]
+    Q7 -->|No| Q8{Already materialized,\ncalling ToList/ToArray again?}
+
+    Q8 -->|Yes| Redundant["ZA0108 — Remove redundant materialization"]
+    Q8 -->|No| ZeroLen["ZA0109 — Use Array.Empty&lt;T&gt;() for zero-length"]
 ```
 
 ---
