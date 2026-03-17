@@ -1,3 +1,11 @@
+---
+id: rules-delegates
+title: Delegates Rules (ZA14xx)
+slug: /docs/rules/delegates
+description: Static lambda caching and closure elimination rules.
+sidebar_position: 14
+---
+
 # Delegates (ZA14xx)
 
 Lambda expressions in C# can either capture variables from their enclosing scope (creating a closure object on the heap) or capture nothing (making them eligible for caching as a static singleton delegate). The ZA14xx rules help you eliminate unnecessary delegate allocations by using `static` lambdas where no capture is needed.

@@ -1,3 +1,11 @@
+---
+id: rules-memory
+title: Memory Rules (ZA03xx)
+slug: /docs/rules/memory
+description: Stackalloc vs ArrayPool rules for temporary buffer allocation.
+sidebar_position: 5
+---
+
 # Memory (ZA03xx)
 
 Array allocations for temporary buffers are a significant source of GC pressure. Every `new byte[N]` allocates a heap object that the garbage collector must eventually track and collect. The ZA03xx rules guide you toward stack allocation for small buffers and pool-based reuse for large ones.

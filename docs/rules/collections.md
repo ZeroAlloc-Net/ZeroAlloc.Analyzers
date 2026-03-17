@@ -1,3 +1,11 @@
+---
+id: rules-collections
+title: Collections Rules (ZA01xx)
+slug: /docs/rules/collections
+description: FrozenDictionary, FrozenSet, and collection type selection rules.
+sidebar_position: 3
+---
+
 # Collections Rules (ZA01xx)
 
 Collections are the most common source of avoidable allocations in .NET code. The ZA01xx rules help you pick the right collection type, avoid redundant copies, and eliminate unnecessary enumeration overhead.

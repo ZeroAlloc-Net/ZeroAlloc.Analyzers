@@ -1,3 +1,11 @@
+---
+id: rules-sealing
+title: Sealing Rules (ZA09xx)
+slug: /docs/rules/sealing
+description: Class sealing for JIT devirtualization rules.
+sidebar_position: 11
+---
+
 # Sealing (ZA09xx)
 
 Virtual dispatch allows the JIT to inline and devirtualize methods only when it can prove the concrete type at the call site. Sealing a class gives the JIT that proof statically — enabling aggressive inlining and devirtualization without runtime type checks. The ZA09xx rules flag classes that could be sealed for measurable throughput gains.

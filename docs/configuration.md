@@ -1,3 +1,11 @@
+---
+id: configuration
+title: Configuration
+slug: /docs/configuration
+description: Tune analyzer severities, suppress individual rules, and configure TFM-aware gating.
+sidebar_position: 2
+---
+
 # Configuring ZeroAlloc.Analyzers
 
 This guide explains how to control which rules fire, at what severity, and in which files. ZeroAlloc.Analyzers integrates fully with the standard .NET analyzer configuration model, so all the usual mechanisms work without any special setup.
@@ -17,7 +25,7 @@ Each diagnostic rule has a default severity that determines what happens when th
 
 Rules in ZeroAlloc.Analyzers ship with one of two default severities:
 
-- **Warning** — rules that flag a clearly suboptimal pattern where there is almost always a strictly better alternative (e.g., ZA0201 — use `stackalloc` instead of `new` for small fixed-size arrays). These produce compiler warnings and are visible in CI output.
+- **Warning** — rules that flag a clearly suboptimal pattern where there is almost always a strictly better alternative (e.g., ZA0201 — use `StringBuilder` instead of string concatenation in loops). These produce compiler warnings and are visible in CI output.
 - **Info / Suggestion** — rules that flag patterns that are *often* improvable but may have legitimate uses, or that require more context to judge (e.g., ZA0901 — consider `ArrayPool` for large allocations). These show as IDE hints only and do not appear in build output unless you explicitly promote them.
 
 You can override the default severity for any rule using any of the mechanisms described in the sections below. The override takes effect immediately on the next build — no package reinstall is required.
@@ -133,7 +141,7 @@ The attribute can be applied at class, method, property, or assembly level. Asse
 
 ## 5. TFM-based rule gating
 
-Some ZeroAlloc rules detect patterns that are only problematic (or only fixable) on specific .NET versions. For example, `CollectionsMarshal.GetValueRefOrAddDefault` (used by ZA0101) was introduced in .NET 8. There is no reason to fire that rule against a net6.0 project.
+Some ZeroAlloc rules detect patterns that are only problematic (or only fixable) on specific .NET versions. For example, `FrozenDictionary<TKey, TValue>` (recommended by ZA0101 for read-only dictionaries that are never mutated after initialization) was introduced in .NET 8. There is no reason to fire that rule against a net6.0 project.
 
 ZeroAlloc.Analyzers handles this automatically via a `CompilerVisibleProperty` that makes the project's `<TargetFramework>` visible to the analyzer at compile time:
 
@@ -155,7 +163,7 @@ The table below uses four representative rules to illustrate how TFM gating work
 
 | Rule | Min TFM | Active on net9.0 | Active on net6.0 | Active on net5.0 | Active on &lt;net5.0 |
 |------|---------|:---:|:---:|:---:|:---:|
-| ZA0101 — use `CollectionsMarshal` for hot-path dict mutations | net8.0 | ✓ | ✗ | ✗ | ✗ |
+| ZA0101 — use `FrozenDictionary` instead of mutable `Dictionary` never mutated after initialization | net8.0 | ✓ | ✗ | ✗ | ✗ |
 | ZA0103 — use `CollectionsMarshal.AsSpan` over `List<T>` copy | net5.0 | ✓ | ✓ | ✓ | ✗ |
 | ZA0105 — use `TryGetValue` instead of double lookup | Any | ✓ | ✓ | ✓ | ✓ |
 | ZA0801 — use `string.Concat` instead of interpolation (pre-optimization) | &lt;net7.0 | ✗ | ✓ | ✓ | ✓ |

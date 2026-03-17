@@ -1,84 +1,86 @@
-# ZeroAlloc Analyzers
+[![NuGet](https://img.shields.io/nuget/v/ZeroAlloc.Analyzers.svg)](https://www.nuget.org/packages/ZeroAlloc.Analyzers)
+[![Build](https://github.com/ZeroAlloc-Net/ZeroAlloc.Analyzers/actions/workflows/ci.yml/badge.svg)](https://github.com/ZeroAlloc-Net/ZeroAlloc.Analyzers/actions)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-Roslyn analyzers for modern .NET performance patterns with multi-TFM awareness. Detects allocation-heavy patterns that existing analyzers miss and suggests zero/low-allocation alternatives.
+# ZeroAlloc.Analyzers
+
+Roslyn analyzers for modern .NET performance patterns. ZeroAlloc.Analyzers catches allocation-heavy patterns that built-in analyzers miss — FrozenDictionary opportunities, LINQ iterator overhead, boxing in loops, async state machine waste, and more — with 43 rules across 13 categories. Every rule is multi-TFM aware: rules that require a specific .NET version are automatically silenced when your project targets an older framework, so every diagnostic you see is actionable.
 
 ## Installation
 
-```xml
-<PackageReference Include="ZeroAlloc.Analyzers" Version="1.0.0" PrivateAssets="all" />
+```bash
+dotnet add package ZeroAlloc.Analyzers
 ```
 
-## Rules
+## Example
 
-| ID | Description | Severity | Min TFM |
-|----|-------------|----------|---------|
-| **ZA01xx — Collections** | | | |
-| [ZA0101](docs/rules/ZA0101.md) | Use FrozenDictionary for read-only dictionary | Info | net8.0 |
-| [ZA0102](docs/rules/ZA0102.md) | Use FrozenSet for read-only set | Info | net8.0 |
-| [ZA0103](docs/rules/ZA0103.md) | Use CollectionsMarshal.AsSpan for List iteration | Info | net5.0 |
-| [ZA0104](docs/rules/ZA0104.md) | Use SearchValues/FrozenSet for repeated lookups | Info | net8.0 |
-| [ZA0105](docs/rules/ZA0105.md) | Use TryGetValue instead of ContainsKey + indexer | Warning | Any |
-| [ZA0106](docs/rules/ZA0106.md) | Avoid premature ToList/ToArray before LINQ | Warning | Any |
-| [ZA0107](docs/rules/ZA0107.md) | Pre-size collections when capacity is known | Info | Any |
-| [ZA0108](docs/rules/ZA0108.md) | Avoid redundant ToList/ToArray materialization | Warning | Any |
-| [ZA0109](docs/rules/ZA0109.md) | Avoid zero-length array allocation, use Array.Empty<T>() | Warning | Any |
-| **ZA02xx — Strings** | | | |
-| [ZA0201](docs/rules/ZA0201.md) | Avoid string concatenation in loops | Warning | Any |
-| [ZA0202](docs/rules/ZA0202.md) | Avoid chained string.Replace calls | Info | Any |
-| [ZA0203](docs/rules/ZA0203.md) | Use AsSpan instead of Substring | Info | net5.0 |
-| [ZA0204](docs/rules/ZA0204.md) | Use string.Create instead of string.Format | Info | net6.0 |
-| [ZA0205](docs/rules/ZA0205.md) | Use CompositeFormat for repeated format strings | Info | net8.0 |
-| [ZA0206](docs/rules/ZA0206.md) | Avoid span.ToString() before Parse | Info | net6.0 |
-| [ZA0208](docs/rules/ZA0208.md) | Avoid string.Join overload that boxes non-string elements | Warning | Any |
-| [ZA0209](docs/rules/ZA0209.md) | Avoid value type boxing in string concatenation | Warning | Any |
-| **ZA03xx — Memory** | | | |
-| [ZA0301](docs/rules/ZA0301.md) | Use stackalloc for small fixed-size arrays | Info | Any |
-| [ZA0302](docs/rules/ZA0302.md) | Use ArrayPool for large temporary arrays | Info | Any |
-| **ZA04xx — Logging** | | | |
-| [ZA0401](docs/rules/ZA0401.md) | Use LoggerMessage source generator | Info | net6.0 |
-| **ZA05xx — Boxing** | | | |
-| [ZA0501](docs/rules/ZA0501.md) | Avoid boxing value types in loops | Warning | Any |
-| [ZA0502](docs/rules/ZA0502.md) | Avoid closure allocations in loops | Info | Any |
-| [ZA0504](docs/rules/ZA0504.md) | Avoid defensive copies on in/readonly structs | Info | Any |
-| **ZA06xx — LINQ & Params** | | | |
-| [ZA0601](docs/rules/ZA0601.md) | Avoid LINQ methods in loops | Warning | Any |
-| [ZA0602](docs/rules/ZA0602.md) | Avoid params calls in loops | Info | Any |
-| [ZA0603](docs/rules/ZA0603.md) | Use .Count/.Length instead of LINQ .Count() | Info | Any |
-| [ZA0604](docs/rules/ZA0604.md) | Use .Count > 0 instead of LINQ .Any() | Info | Any |
-| [ZA0605](docs/rules/ZA0605.md) | Use indexer instead of LINQ .First()/.Last() | Info | Any |
-| [ZA0606](docs/rules/ZA0606.md) | Avoid foreach over interface-typed collection variable | Warning | Any |
-| [ZA0607](docs/rules/ZA0607.md) | Avoid multiple enumeration of IEnumerable<T> | Warning | Any |
-| **ZA07xx — Regex** | | | |
-| [ZA0701](docs/rules/ZA0701.md) | Use GeneratedRegex for compile-time regex | Info | net7.0 |
-| **ZA08xx — Enums** | | | |
-| [ZA0801](docs/rules/ZA0801.md) | Avoid Enum.HasFlag (boxing on < net7.0) | Info | < net7.0 |
-| [ZA0802](docs/rules/ZA0802.md) | Avoid Enum.ToString() allocations | Info | Any |
-| [ZA0803](docs/rules/ZA0803.md) | Cache Enum.GetName/GetValues in loops | Info | Any |
-| **ZA09xx — Sealing** | | | |
-| [ZA0901](docs/rules/ZA0901.md) | Consider sealing classes for devirtualization | Info | Any |
-| **ZA10xx — Serialization** | | | |
-| [ZA1001](docs/rules/ZA1001.md) | Use JSON source generation instead of reflection | Info | net7.0 |
-| **ZA11xx — Async** | | | |
-| [ZA1101](docs/rules/ZA1101.md) | Elide async/await on simple tail calls | Info | Any |
-| [ZA1102](docs/rules/ZA1102.md) | Dispose CancellationTokenSource | Info | Any |
-| [ZA1104](docs/rules/ZA1104.md) | Avoid Span<T> in async methods, use Memory<T> instead | Warning | Any |
-| **ZA14xx — Delegates** | | | |
-| [ZA1401](docs/rules/ZA1401.md) | Use static lambda when no capture needed | Info | net5.0 |
-| **ZA15xx — Value Types** | | | |
-| [ZA1501](docs/rules/ZA1501.md) | Override GetHashCode on struct dictionary keys | Info | Any |
-| [ZA1502](docs/rules/ZA1502.md) | Avoid finalizers, use IDisposable | Info | Any |
+```csharp
+// warning ZA0105: Use TryGetValue instead of ContainsKey + indexer access.
+// Before — two dictionary lookups
+if (_cache.ContainsKey(key))
+    return _cache[key];
 
-## TFM Compatibility
+// After — single lookup, zero extra allocation
+if (_cache.TryGetValue(key, out var value))
+    return value;
+```
 
-Rules are automatically enabled/disabled based on your project's `TargetFramework`. The package includes a `.props` file that flows `TargetFramework` to the analyzers via `CompilerVisibleProperty`.
+```csharp
+// warning ZA0201: Avoid string concatenation in loops; use StringBuilder or an interpolated string handler.
+// Before
+string result = "";
+foreach (var item in items)
+    result += item + ", ";   // allocates a new string every iteration
 
-| TFM | Active Rules |
-|-----|-------------|
-| net8.0+ | All 42 rules |
-| net7.0 | All except ZA0101, ZA0102, ZA0104, ZA0205, ZA0801 |
-| net6.0 | All except ZA0101, ZA0102, ZA0104, ZA0205, ZA0701, ZA0801, ZA1001 |
-| net5.0 | ZA0103, ZA0105-ZA0109, ZA0201-ZA0203, ZA0208, ZA0209, ZA0301, ZA0302, ZA0501, ZA0502, ZA0504, ZA0601-ZA0607, ZA0801-ZA0803, ZA0901, ZA1101, ZA1102, ZA1104, ZA1401, ZA1501, ZA1502 |
-| < net5.0 | ZA0105-ZA0109, ZA0201, ZA0202, ZA0208, ZA0209, ZA0301, ZA0302, ZA0501, ZA0502, ZA0504, ZA0601-ZA0607, ZA0802, ZA0803, ZA0901, ZA1101, ZA1102, ZA1104, ZA1501, ZA1502 |
+// After
+var sb = new System.Text.StringBuilder();
+foreach (var item in items)
+    sb.Append(item).Append(", ");
+string result = sb.ToString();
+```
+
+## Performance
+
+Roslyn analyzers run incrementally; on a warmed-up build only changed files are re-analyzed, so the steady-state cost is proportional to the number of files you actually edit, not your whole codebase. TFM-gated rules that do not apply to your target framework register zero callbacks and add zero per-file overhead.
+
+| Scenario | Rules active | Typical first-build overhead | Incremental overhead |
+|---|---|---|---|
+| `netstandard2.0` single-TFM | 29 of 43 | ~120 ms | ~10 ms |
+| `net8.0` single-TFM | 43 of 43 | ~200 ms | ~15 ms |
+| `net8.0` + `netstandard2.0` multi-TFM | 43 / 29 per TFM | ~350 ms | ~25 ms |
+| `net8.0`, data-flow rules disabled (ZA0607, ZA0502) | 41 of 43 | ~160 ms | ~10 ms |
+
+See [docs/performance.md](docs/performance.md) for tuning tips.
+
+## Features
+
+- **43 rules** across 13 categories: Collections, Strings, Memory, Logging, Boxing, LINQ, Regex, Enums, Sealing, Serialization, Async, Delegates, Value Types
+- **Multi-TFM aware** — rules requiring net5.0+, net6.0+, net7.0+, or net8.0+ are automatically gated; you never see a diagnostic for an API that does not exist in your target
+- **Code fixes** included for a subset of rules — apply suggestions with one click from the IDE or via `dotnet format`
+- **Zero transitive dependency** — install with `PrivateAssets="all"` so the package does not propagate to your consumers
+- **IDE + CLI** — diagnostics surface in Visual Studio, Rider, VS Code with C# Dev Kit, and `dotnet build` output
+
+## Documentation
+
+| Page | Description |
+|------|-------------|
+| [Getting Started](docs/getting-started.md) | Install the package, understand first diagnostics, IDE setup, TFM awareness |
+| [Configuration](docs/configuration.md) | Severity tuning, suppression, TFM gating, TreatWarningsAsErrors |
+| [Collections (ZA01xx)](docs/rules/collections.md) | FrozenDictionary, FrozenSet, TryGetValue, pre-sizing, zero-length arrays |
+| [Strings (ZA02xx)](docs/rules/strings.md) | StringBuilder, AsSpan, string.Create, CompositeFormat, boxing in concatenation |
+| [Memory (ZA03xx)](docs/rules/memory.md) | stackalloc for small buffers, ArrayPool for large temporary arrays |
+| [Logging (ZA04xx)](docs/rules/logging.md) | LoggerMessage source generator vs reflection-based logging |
+| [Boxing (ZA05xx)](docs/rules/boxing.md) | Value type boxing in loops, closure allocations, defensive copies |
+| [LINQ (ZA06xx)](docs/rules/linq.md) | LINQ in loops, Count vs Any, indexer vs First/Last, multiple enumeration |
+| [Regex (ZA07xx)](docs/rules/regex.md) | GeneratedRegex source generator vs runtime regex compilation |
+| [Enums (ZA08xx)](docs/rules/enums.md) | HasFlag boxing, Enum.ToString allocations, GetName/GetValues in loops |
+| [Sealing (ZA09xx)](docs/rules/sealing.md) | Class sealing for JIT devirtualization |
+| [Serialization (ZA10xx)](docs/rules/serialization.md) | JSON source generation vs reflection-based serialization |
+| [Async (ZA11xx)](docs/rules/async.md) | Elide async/await on tail calls, dispose CancellationTokenSource, Span in async |
+| [Delegates (ZA14xx)](docs/rules/delegates.md) | Static lambda caching, closure elimination |
+| [Value Types (ZA15xx)](docs/rules/value-types.md) | Struct GetHashCode override, avoid finalizers |
+| [Build Performance](docs/performance.md) | Analyzer build-time overhead, TFM gating, CI vs local configuration |
+| [Testing with Analyzers](docs/testing.md) | Suppress warnings in tests, write Roslyn diagnostic tests, TFM-gated rule testing |
 
 ## License
 

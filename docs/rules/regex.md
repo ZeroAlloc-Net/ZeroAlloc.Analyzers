@@ -1,3 +1,11 @@
+---
+id: rules-regex
+title: Regex Rules (ZA07xx)
+slug: /docs/rules/regex
+description: GeneratedRegex source generator vs runtime regex compilation rules.
+sidebar_position: 9
+---
+
 # Regex (ZA07xx)
 
 Regular expressions compiled at runtime carry a one-time JIT cost, memory overhead for the compiled state machine, and — unless `RegexOptions.Compiled` is used — repeated interpretation overhead. The `[GeneratedRegex]` source generator introduced in .NET 7 moves all of this to compile time, producing faster, NativeAOT-compatible, zero-allocation regex dispatch.

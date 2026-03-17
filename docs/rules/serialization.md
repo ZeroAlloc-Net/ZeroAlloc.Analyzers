@@ -1,3 +1,11 @@
+---
+id: rules-serialization
+title: Serialization Rules (ZA10xx)
+slug: /docs/rules/serialization
+description: JSON source generation vs reflection-based serialization rules.
+sidebar_position: 12
+---
+
 # Serialization (ZA10xx)
 
 Reflection-based JSON serialization has significant startup cost: types must be discovered, constructors and properties must be resolved via reflection, and serialization delegates are generated dynamically at runtime. On net7.0+, `System.Text.Json` source generators produce all of this code at compile time — faster, AOT-compatible, and trimming-safe.
