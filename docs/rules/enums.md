@@ -1,3 +1,11 @@
+---
+id: rules-enums
+title: Enums Rules (ZA08xx)
+slug: /docs/rules/enums
+description: HasFlag boxing on pre-.NET 7 and Enum.ToString reflection rules.
+sidebar_position: 10
+---
+
 # Enums (ZA08xx)
 
 Enum operations look cheap but hide subtle allocation traps: `HasFlag` boxes on older runtimes, `ToString()` uses reflection and allocates a string every call, and `GetName`/`GetValues` in loops repeat expensive reflection on every iteration. The ZA08xx rules catch these patterns.

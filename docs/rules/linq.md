@@ -1,3 +1,11 @@
+---
+id: rules-linq
+title: LINQ Rules (ZA06xx)
+slug: /docs/rules/linq
+description: Iterator allocation and lazy pipeline traversal overhead rules.
+sidebar_position: 8
+---
+
 # LINQ (ZA06xx)
 
 LINQ is expressive but carries overhead: most operators allocate an enumerator object or iterator state machine on the heap, and lazy pipelines can cause sequences to be traversed multiple times. The ZA06xx rules help you use LINQ correctly, avoid accidental performance regressions, and replace it with direct collection access when possible.

@@ -1,3 +1,11 @@
+---
+id: rules-strings
+title: Strings Rules (ZA02xx)
+slug: /docs/rules/strings
+description: StringBuilder, AsSpan, and string.Create allocation pattern rules.
+sidebar_position: 4
+---
+
 # Strings (ZA02xx)
 
 String operations are deceptively expensive — strings are immutable reference types, so every transformation produces a new heap allocation. The ZA02xx rules help you avoid unnecessary string copies, prefer span-based operations, and use modern allocation-free APIs.

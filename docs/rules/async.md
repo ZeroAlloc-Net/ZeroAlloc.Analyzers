@@ -1,3 +1,11 @@
+---
+id: rules-async
+title: Async Rules (ZA11xx)
+slug: /docs/rules/async
+description: Async state machine allocation and CancellationTokenSource leak rules.
+sidebar_position: 13
+---
+
 # Async (ZA11xx)
 
 `async/await` generates a state machine class for every async method. When an awaited operation completes synchronously (which is common in caching, in-memory operations, and fast I/O), the state machine is never allocated — but the overhead of setting it up still exists. Unnecessary state machines, leaked `CancellationTokenSource` instances, and `Span<T>` misuse in async methods are common performance traps.

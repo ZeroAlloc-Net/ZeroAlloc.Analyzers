@@ -1,3 +1,11 @@
+---
+id: configuration
+title: Configuration
+slug: /docs/configuration
+description: Tune analyzer severities, suppress individual rules, and configure TFM-aware gating.
+sidebar_position: 2
+---
+
 # Configuring ZeroAlloc.Analyzers
 
 This guide explains how to control which rules fire, at what severity, and in which files. ZeroAlloc.Analyzers integrates fully with the standard .NET analyzer configuration model, so all the usual mechanisms work without any special setup.

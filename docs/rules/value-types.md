@@ -1,3 +1,11 @@
+---
+id: rules-value-types
+title: Value Types Rules (ZA15xx)
+slug: /docs/rules/value-types
+description: Struct GetHashCode override and finalizer overhead rules.
+sidebar_position: 15
+---
+
 # Value Types (ZA15xx)
 
 Structs have unique performance characteristics that are easy to exploit incorrectly. Using a struct as a dictionary key without overriding `GetHashCode` causes slow reflective hashing; adding a finalizer to any type introduces GC promotion overhead. The ZA15xx rules catch both patterns.

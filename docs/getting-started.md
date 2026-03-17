@@ -1,5 +1,9 @@
 ---
+id: getting-started
+title: Getting Started
 slug: /
+description: Install ZeroAlloc.Analyzers and start catching allocation-heavy patterns at compile time.
+sidebar_position: 1
 ---
 
 # Getting Started with ZeroAlloc.Analyzers

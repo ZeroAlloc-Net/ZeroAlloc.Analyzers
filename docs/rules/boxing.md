@@ -1,3 +1,11 @@
+---
+id: rules-boxing
+title: Boxing Rules (ZA05xx)
+slug: /docs/rules/boxing
+description: Value type boxing and closure allocation pattern detection rules.
+sidebar_position: 7
+---
+
 # Boxing & Closures (ZA05xx)
 
 Boxing occurs when a value type (struct, int, bool, enum, etc.) is implicitly converted to `object` or an interface reference. It allocates a heap wrapper object, copies the value into it, and creates GC pressure. Closures that capture loop variables have a similar issue — each iteration allocates a new closure object. The ZA05xx rules detect these patterns.

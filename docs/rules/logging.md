@@ -1,3 +1,11 @@
+---
+id: rules-logging
+title: Logging Rules (ZA04xx)
+slug: /docs/rules/logging
+description: LoggerMessage source generator vs reflection-based logging rules.
+sidebar_position: 6
+---
+
 # Logging (ZA04xx)
 
 Structured logging sits on the critical path of nearly every production service. The ZA04xx rules ensure you use compile-time source generation rather than runtime reflection, eliminating per-call boxing and template parsing overhead.
