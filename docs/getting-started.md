@@ -259,4 +259,4 @@ The tables below list all 43 rules grouped by category. Rule IDs link to the cor
 ## Next Steps
 
 - [Configuration guide](configuration.md) — Customize severities, suppress rules, and understand TFM gating in depth.
-- [Contributing](contributing/contributing.md) — Learn how to add new rules, write tests, and submit pull requests.
+- [Contributing](contributing/adding-a-rule.md) — Learn how to add new rules, write tests, and submit pull requests.

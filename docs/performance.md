@@ -58,7 +58,7 @@ This is a zero-cost mechanism: the value is passed to the analyzer as part of th
 
 Analyzers that check type declarations (such as `UseFrozenDictionaryAnalyzer`) register at the `SymbolKind.Field` level rather than walking every `SyntaxNode` in the file. Symbol-level callbacks are triggered by the compiler only after it has already built the symbol graph, meaning the analyzer gets a pre-filtered view of the code and does not need to implement its own filtering logic over raw syntax trees.
 
-Analyzers that must inspect syntax patterns (such as loop-body analysis for ZA0601) register `RegisterCodeBlockStartAction`, scoping work to individual method bodies rather than entire files.
+Analyzers that must inspect syntax patterns (such as loop-body analysis for ZA0601) register `RegisterSyntaxNodeAction` for `InvocationExpression` nodes, performing a lightweight syntactic walk up to the nearest enclosing loop rather than entire files.
 
 ---
 
@@ -70,7 +70,7 @@ This means:
 
 - A `net8.0` build runs all 43 rules.
 - A `net6.0` build automatically skips ZA0101, ZA0102, ZA0104, ZA0205, ZA0701, ZA0801, and ZA1001 — any rule whose minimum TFM is higher than `net6.0`.
-- A `netstandard2.0` build skips all TFM-gated rules and runs only the 25 rules whose minimum TFM is `Any`.
+- A `netstandard2.0` build skips all TFM-gated rules and runs only the 29 rules whose minimum TFM is `Any`.
 
 For CI pipelines that build multiple TFMs in parallel, the per-TFM cost is independent: each TFM compilation gets exactly the rule set that applies to it, with no wasted work.
 
@@ -109,7 +109,7 @@ Place this in a `.editorconfig` that is git-ignored for local use only.
 
 ### Per-rule severity tuning to suppress expensive rules in debug builds
 
-`Info`-severity rules do not appear in build output but still run analysis work. If specific rules are slow on your codebase (such as ZA0607, which performs a whole-method data-flow scan for multiple enumeration), you can demote them further or disable them for non-CI builds:
+`Info`-severity rules do not appear in build output but still run analysis work. If specific rules are slow on your codebase (such as ZA0607, which performs a method-scoped syntactic scan grouping all foreach statements over the same IEnumerable local to detect multiple enumeration), you can demote them further or disable them for non-CI builds:
 
 ```xml
 <!-- Directory.Build.props -->

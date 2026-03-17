@@ -32,7 +32,7 @@ Always include a short justification comment after the rule ID. It helps reviewe
 
 ```csharp
 [System.Diagnostics.CodeAnalysis.SuppressMessage(
-    "Performance.Collections",
+    "Performance.Linq",
     "ZA0601:AvoidLinqInLoops",
     Justification = "Test helper — readability takes priority over allocation performance.")]
 private static IEnumerable<int> BuildTestSequence(int count)
