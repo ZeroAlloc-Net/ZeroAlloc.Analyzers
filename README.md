@@ -39,6 +39,19 @@ foreach (var item in items)
 string result = sb.ToString();
 ```
 
+## Performance
+
+Roslyn analyzers run incrementally; on a warmed-up build only changed files are re-analyzed, so the steady-state cost is proportional to the number of files you actually edit, not your whole codebase. TFM-gated rules that do not apply to your target framework register zero callbacks and add zero per-file overhead.
+
+| Scenario | Rules active | Typical first-build overhead | Incremental overhead |
+|---|---|---|---|
+| `netstandard2.0` single-TFM | 25 of 43 | ~120 ms | ~10 ms |
+| `net8.0` single-TFM | 43 of 43 | ~200 ms | ~15 ms |
+| `net8.0` + `netstandard2.0` multi-TFM | 43 / 25 per TFM | ~350 ms | ~25 ms |
+| `net8.0`, data-flow rules disabled (ZA0607, ZA0502) | 41 of 43 | ~160 ms | ~10 ms |
+
+See [docs/performance.md](docs/performance.md) for tuning tips.
+
 ## Features
 
 - **43 rules** across 13 categories: Collections, Strings, Memory, Logging, Boxing, LINQ, Regex, Enums, Sealing, Serialization, Async, Delegates, Value Types
