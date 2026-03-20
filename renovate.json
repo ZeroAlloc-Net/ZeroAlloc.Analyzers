@@ -1,0 +1,52 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended"
+  ],
+  "schedule": ["before 6am on monday"],
+  "timezone": "Europe/Amsterdam",
+  "labels": ["dependencies"],
+  "packageRules": [
+    {
+      "description": "Ignore internal ZeroAlloc packages — managed by release-please",
+      "matchPackagePrefixes": ["ZeroAlloc."],
+      "enabled": false
+    },
+    {
+      "description": "Group Roslyn analyzer packages",
+      "matchPackageNames": [
+        "Meziantou.Analyzer",
+        "Roslynator.Analyzers",
+        "ErrorProne.NET.CoreAnalyzers",
+        "ErrorProne.NET.Structs",
+        "NetFabric.Hyperlinq.Analyzer"
+      ],
+      "groupName": "Roslyn analyzers"
+    },
+    {
+      "description": "Group xunit packages",
+      "matchPackagePrefixes": ["xunit"],
+      "groupName": "xunit"
+    },
+    {
+      "description": "Group Microsoft.Extensions packages",
+      "matchPackagePrefixes": ["Microsoft.Extensions."],
+      "groupName": "Microsoft.Extensions"
+    },
+    {
+      "description": "Group Microsoft.CodeAnalysis packages",
+      "matchPackagePrefixes": ["Microsoft.CodeAnalysis."],
+      "groupName": "Microsoft.CodeAnalysis"
+    },
+    {
+      "description": "Group GitHub Actions",
+      "matchManagers": ["github-actions"],
+      "groupName": "GitHub Actions"
+    },
+    {
+      "description": "Automerge patch updates",
+      "matchUpdateTypes": ["patch"],
+      "automerge": true
+    }
+  ]
+}
