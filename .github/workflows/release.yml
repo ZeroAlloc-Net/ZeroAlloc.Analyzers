@@ -1,72 +1,47 @@
 name: Release
 
 on:
-  push:
-    branches: [main]
-
-permissions:
-  contents: write
+  release:
+    types: [published]
 
 jobs:
-  release:
+  publish:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v5
         with:
-          dotnet-version: '9.0.x'
+          dotnet-version: net10.0
 
-      - name: Install GitVersion
-        uses: gittools/actions/gitversion/setup@v3.1.11
-        with:
-          versionSpec: '6.0.x'
+      - name: Restore tools
+        run: dotnet tool restore
 
-      - name: Calculate version
-        id: gitversion
-        uses: gittools/actions/gitversion/execute@v3.1.11
-        with:
-          useConfigFile: true
-
-      - name: Display version
-        run: echo "Releasing version ${{ steps.gitversion.outputs.semVer }}"
+      - name: Extract version from tag
+        id: version
+        run: |
+          TAG="${{ github.event.release.tag_name }}"
+          VERSION="${TAG#v}"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Release version: $VERSION"
 
       - name: Restore
         run: dotnet restore
 
       - name: Build
-        run: dotnet build --no-restore -c Release
+        run: dotnet build --no-restore -c Release -p:Version=${{ steps.version.outputs.version }}
 
       - name: Test
         run: dotnet test --no-build -c Release --verbosity normal
 
       - name: Pack
-        run: >-
-          dotnet pack src/ZeroAlloc.Analyzers.Package/ZeroAlloc.Analyzers.Package.csproj
-          -c Release
-          --no-build
-          -p:PackageVersion=${{ steps.gitversion.outputs.semVer }}
+        run: |
+          dotnet pack src/ZeroAlloc.Analyzers.Package/ZeroAlloc.Analyzers.Package.csproj --no-build -c Release -p:PackageVersion=${{ steps.version.outputs.version }} -o ./artifacts
 
       - name: Push to NuGet
-        run: >-
-          dotnet nuget push
-          src/ZeroAlloc.Analyzers.Package/bin/Release/*.nupkg
-          --api-key ${{ secrets.NUGET_API_KEY }}
-          --source https://api.nuget.org/v3/index.json
-          --skip-duplicate
-
-      - name: Create tag
-        run: |
-          git tag "v${{ steps.gitversion.outputs.semVer }}"
-          git push origin "v${{ steps.gitversion.outputs.semVer }}"
-
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: v${{ steps.gitversion.outputs.semVer }}
-          generate_release_notes: true
-          files: src/ZeroAlloc.Analyzers.Package/bin/Release/*.nupkg
+        run: dotnet nuget push ./artifacts/*.nupkg --api-key ${{ secrets.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json

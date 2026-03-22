@@ -1,35 +1,49 @@
 name: CI
 
 on:
+  push:
+    branches: [main]
   pull_request:
     branches: [main]
 
 jobs:
-  build-and-test:
+  build:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v5
         with:
-          dotnet-version: '9.0.x'
+          dotnet-version: net10.0
+
+      - name: Restore tools
+        run: dotnet tool restore
+
+      - name: Run GitVersion
+        id: gitversion
+        run: |
+          VERSION=$(dotnet gitversion /showvariable SemVer)
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Package version: $VERSION"
 
       - name: Restore
         run: dotnet restore
 
       - name: Build
-        run: dotnet build --no-restore -c Release
+        run: dotnet build --no-restore -c Release -p:Version=${{ steps.gitversion.outputs.version }}
 
       - name: Test
         run: dotnet test --no-build -c Release --verbosity normal
 
       - name: Pack
-        run: dotnet pack src/ZeroAlloc.Analyzers.Package/ZeroAlloc.Analyzers.Package.csproj -c Release --no-build
+        run: |
+          dotnet pack src/ZeroAlloc.Analyzers.Package/ZeroAlloc.Analyzers.Package.csproj --no-build -c Release -p:PackageVersion=${{ steps.gitversion.outputs.version }} -o ./artifacts
 
-      - name: Upload NuGet artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: nuget-package
-          path: src/ZeroAlloc.Analyzers.Package/bin/Release/*.nupkg
+      - name: Push to NuGet (pre-release)
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: dotnet nuget push ./artifacts/*.nupkg --api-key ${{ secrets.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json --skip-duplicate

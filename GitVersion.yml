@@ -1,25 +1,12 @@
-next-version: 1.0.0
 mode: ContinuousDeployment
-major-version-bump-message: "^(feat|fix|refactor|perf)(\\(.*\\))?!:|BREAKING CHANGE"
+tag-prefix: v
+major-version-bump-message: "^(build|chore|ci|docs|feat|fix|perf|refactor|revert|style|test)(\\(.*\\))?!:"
 minor-version-bump-message: "^feat(\\(.*\\))?:"
-patch-version-bump-message: "^(fix|docs|test|ci|chore|refactor|perf)(\\(.*\\))?:"
+patch-version-bump-message: "^fix(\\(.*\\))?:"
 branches:
   main:
-    label: ''
-    increment: Patch
-    is-main-branch: true
-    regex: ^master$|^main$
-  feature:
-    label: '{BranchName}'
-    increment: Minor
-    regex: ^features?[/-](?<BranchName>.+)
-    source-branches:
-    - main
-  pull-request:
-    mode: ContinuousDelivery
-    label: PullRequest{Number}
-    increment: Inherit
-    regex: ^(pull-requests|pull|pr)[/-](?<Number>\d*)
-    source-branches:
-    - main
-    - feature
+    regex: ^main$
+    label: alpha
+  release:
+    regex: ^release/.*$
+    label: rc
