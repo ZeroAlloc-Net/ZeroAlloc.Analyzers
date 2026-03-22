@@ -19,21 +19,17 @@ jobs:
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: '9.0.x'
+          dotnet-version: 10.0.x
 
-      - name: Install GitVersion
-        uses: gittools/actions/gitversion/setup@v3.1.11
-        with:
-          versionSpec: '6.0.x'
+      - name: Restore tools
+        run: dotnet tool restore
 
       - name: Calculate version
         id: gitversion
-        uses: gittools/actions/gitversion/execute@v3.1.11
-        with:
-          useConfigFile: true
-
-      - name: Display version
-        run: echo "Releasing version ${{ steps.gitversion.outputs.semVer }}"
+        run: |
+          version=$(dotnet dotnet-gitversion /output json /showvariable SemVer)
+          echo "semver=$version" >> $GITHUB_OUTPUT
+          echo "Releasing version: $version"
 
       - name: Restore
         run: dotnet restore
@@ -49,7 +45,7 @@ jobs:
           dotnet pack src/ZeroAlloc.Analyzers.Package/ZeroAlloc.Analyzers.Package.csproj
           -c Release
           --no-build
-          -p:PackageVersion=${{ steps.gitversion.outputs.semVer }}
+          -p:PackageVersion=${{ steps.gitversion.outputs.semver }}
 
       - name: Push to NuGet
         run: >-
@@ -61,12 +57,12 @@ jobs:
 
       - name: Create tag
         run: |
-          git tag "v${{ steps.gitversion.outputs.semVer }}"
-          git push origin "v${{ steps.gitversion.outputs.semVer }}"
+          git tag "v${{ steps.gitversion.outputs.semver }}"
+          git push origin "v${{ steps.gitversion.outputs.semver }}"
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v${{ steps.gitversion.outputs.semVer }}
+          tag_name: v${{ steps.gitversion.outputs.semver }}
           generate_release_notes: true
           files: src/ZeroAlloc.Analyzers.Package/bin/Release/*.nupkg
