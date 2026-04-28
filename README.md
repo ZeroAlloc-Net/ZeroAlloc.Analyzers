@@ -4,6 +4,9 @@
 
 # ZeroAlloc.Analyzers
 
+[![GitHub Sponsors](https://img.shields.io/github/sponsors/MarcelRoozekrans?style=flat&logo=githubsponsors&color=ea4aaa&label=Sponsor)](https://github.com/sponsors/MarcelRoozekrans)
+
+
 Roslyn analyzers for modern .NET performance patterns. ZeroAlloc.Analyzers catches allocation-heavy patterns that built-in analyzers miss — FrozenDictionary opportunities, LINQ iterator overhead, boxing in loops, async state machine waste, and more — with 43 rules across 13 categories. Every rule is multi-TFM aware: rules that require a specific .NET version are automatically silenced when your project targets an older framework, so every diagnostic you see is actionable.
 
 ## Installation
