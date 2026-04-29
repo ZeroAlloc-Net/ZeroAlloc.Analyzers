@@ -1,11 +1,10 @@
-[![NuGet](https://img.shields.io/nuget/v/ZeroAlloc.Analyzers.svg)](https://www.nuget.org/packages/ZeroAlloc.Analyzers)
-[![Build](https://github.com/ZeroAlloc-Net/ZeroAlloc.Analyzers/actions/workflows/ci.yml/badge.svg)](https://github.com/ZeroAlloc-Net/ZeroAlloc.Analyzers/actions)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-
 # ZeroAlloc.Analyzers
 
+[![NuGet](https://img.shields.io/nuget/v/ZeroAlloc.Analyzers.svg)](https://www.nuget.org/packages/ZeroAlloc.Analyzers)
+[![Build](https://github.com/ZeroAlloc-Net/ZeroAlloc.Analyzers/actions/workflows/ci.yml/badge.svg)](https://github.com/ZeroAlloc-Net/ZeroAlloc.Analyzers/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![AOT](https://img.shields.io/badge/AOT--Compatible-passing-brightgreen)](https://learn.microsoft.com/dotnet/core/deploying/native-aot/)
 [![GitHub Sponsors](https://img.shields.io/github/sponsors/MarcelRoozekrans?style=flat&logo=githubsponsors&color=ea4aaa&label=Sponsor)](https://github.com/sponsors/MarcelRoozekrans)
-
 
 Roslyn analyzers for modern .NET performance patterns. ZeroAlloc.Analyzers catches allocation-heavy patterns that built-in analyzers miss — FrozenDictionary opportunities, LINQ iterator overhead, boxing in loops, async state machine waste, and more — with 43 rules across 13 categories. Every rule is multi-TFM aware: rules that require a specific .NET version are automatically silenced when your project targets an older framework, so every diagnostic you see is actionable.
 
