@@ -6,7 +6,7 @@
 [![AOT](https://img.shields.io/badge/AOT--Compatible-passing-brightgreen)](https://learn.microsoft.com/dotnet/core/deploying/native-aot/)
 [![GitHub Sponsors](https://img.shields.io/github/sponsors/MarcelRoozekrans?style=flat&logo=githubsponsors&color=ea4aaa&label=Sponsor)](https://github.com/sponsors/MarcelRoozekrans)
 
-Roslyn analyzers for modern .NET performance patterns. ZeroAlloc.Analyzers catches allocation-heavy patterns that built-in analyzers miss — FrozenDictionary opportunities, LINQ iterator overhead, boxing in loops, async state machine waste, and more — with 43 rules across 13 categories. Every rule is multi-TFM aware: rules that require a specific .NET version are automatically silenced when your project targets an older framework, so every diagnostic you see is actionable.
+Roslyn analyzers for modern .NET performance patterns. ZeroAlloc.Analyzers catches allocation-heavy patterns that built-in analyzers miss — FrozenDictionary opportunities, LINQ iterator overhead, boxing in loops, async state machine waste, and more — with 45 rules across 14 categories. Every rule is multi-TFM aware: rules that require a specific .NET version are automatically silenced when your project targets an older framework, so every diagnostic you see is actionable.
 
 ## Installation
 
@@ -47,16 +47,16 @@ Roslyn analyzers run incrementally; on a warmed-up build only changed files are 
 
 | Scenario | Rules active | Typical first-build overhead | Incremental overhead |
 |---|---|---|---|
-| `netstandard2.0` single-TFM | 29 of 43 | ~120 ms | ~10 ms |
-| `net8.0` single-TFM | 43 of 43 | ~200 ms | ~15 ms |
-| `net8.0` + `netstandard2.0` multi-TFM | 43 / 29 per TFM | ~350 ms | ~25 ms |
-| `net8.0`, data-flow rules disabled (ZA0607, ZA0502) | 41 of 43 | ~160 ms | ~10 ms |
+| `netstandard2.0` single-TFM | 31 of 45 | ~120 ms | ~10 ms |
+| `net8.0` single-TFM | 45 of 45 | ~200 ms | ~15 ms |
+| `net8.0` + `netstandard2.0` multi-TFM | 45 / 31 per TFM | ~350 ms | ~25 ms |
+| `net8.0`, data-flow rules disabled (ZA0607, ZA0502) | 43 of 45 | ~160 ms | ~10 ms |
 
 See [docs/performance.md](docs/performance.md) for tuning tips.
 
 ## Features
 
-- **43 rules** across 13 categories: Collections, Strings, Memory, Logging, Boxing, LINQ, Regex, Enums, Sealing, Serialization, Async, Delegates, Value Types
+- **45 rules** across 14 categories: Collections, Strings, Memory, Logging, Boxing, LINQ, Regex, Enums, Sealing, Serialization, Async, Delegates, Value Types, Data Layout
 - **Multi-TFM aware** — rules requiring net5.0+, net6.0+, net7.0+, or net8.0+ are automatically gated; you never see a diagnostic for an API that does not exist in your target
 - **Code fixes** included for a subset of rules — apply suggestions with one click from the IDE or via `dotnet format`
 - **Zero transitive dependency** — install with `PrivateAssets="all"` so the package does not propagate to your consumers
@@ -81,6 +81,7 @@ See [docs/performance.md](docs/performance.md) for tuning tips.
 | [Async (ZA11xx)](docs/rules/async.md) | Elide async/await on tail calls, dispose CancellationTokenSource, Span in async |
 | [Delegates (ZA14xx)](docs/rules/delegates.md) | Static lambda caching, closure elimination |
 | [Value Types (ZA15xx)](docs/rules/value-types.md) | Struct GetHashCode override, avoid finalizers |
+| [Data Layout (ZA16xx)](docs/rules/data-layout.md) | Cache-line aware struct field packing, false-sharing isolation |
 | [Build Performance](docs/performance.md) | Analyzer build-time overhead, TFM gating, CI vs local configuration |
 | [Testing with Analyzers](docs/testing.md) | Suppress warnings in tests, write Roslyn diagnostic tests, TFM-gated rule testing |
 

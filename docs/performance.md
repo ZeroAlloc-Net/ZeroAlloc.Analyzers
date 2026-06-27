@@ -68,9 +68,9 @@ When your project uses `<TargetFrameworks>` (plural), MSBuild invokes the compil
 
 This means:
 
-- A `net8.0` build runs all 43 rules.
+- A `net8.0` build runs all 45 rules.
 - A `net6.0` build automatically skips ZA0101, ZA0102, ZA0104, ZA0205, ZA0701, ZA0801, and ZA1001 — any rule whose minimum TFM is higher than `net6.0`.
-- A `netstandard2.0` build skips all TFM-gated rules and runs only the 29 rules whose minimum TFM is `Any`.
+- A `netstandard2.0` build skips all TFM-gated rules and runs only the 31 rules whose minimum TFM is `Any`.
 
 For CI pipelines that build multiple TFMs in parallel, the per-TFM cost is independent: each TFM compilation gets exactly the rule set that applies to it, with no wasted work.
 
