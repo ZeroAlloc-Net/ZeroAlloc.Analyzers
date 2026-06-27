@@ -15,4 +15,5 @@ public static class DiagnosticCategories
     public const string Async = "Performance.Async";
     public const string Delegates = "Performance.Delegates";
     public const string ValueTypes = "Performance.ValueTypes";
+    public const string DataLayout = "Performance.DataLayout";
 }

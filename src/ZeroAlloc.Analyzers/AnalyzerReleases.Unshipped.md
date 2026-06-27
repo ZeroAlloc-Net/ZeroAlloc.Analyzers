@@ -45,3 +45,5 @@ ZA0109 | Performance.Collections | Warning | AvoidZeroLengthArrayAllocationAnaly
 ZA0209 | Performance.Strings | Warning | AvoidValueTypeBoxingInStringConcatAnalyzer
 ZA0607 | Performance.Linq | Warning | AvoidMultipleEnumerationAnalyzer
 ZA1104 | Performance.Async | Warning | AvoidSpanInAsyncMethodAnalyzer
+ZA1601 | Performance.DataLayout | Info | ReorderStructFieldsAnalyzer
+ZA1602 | Performance.DataLayout | Disabled | AvoidFalseSharingAnalyzer
