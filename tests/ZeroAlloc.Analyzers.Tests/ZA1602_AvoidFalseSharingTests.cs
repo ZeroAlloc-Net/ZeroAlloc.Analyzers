@@ -54,8 +54,11 @@ public class ZA1602_AvoidFalseSharingTests
     }
 
     [Fact]
-    public async Task DisabledByDefault_NoDiagnostic()
+    public async Task ExplicitlyDisabled_NoDiagnostic()
     {
+        // The rule is disabled by default; when explicitly disabled it must stay silent.
+        // (The analyzer test harness surfaces diagnostics regardless of the default
+        // enabled state, so suppression is asserted via severity = none.)
         var source = """
             using System.Threading;
 
@@ -68,8 +71,20 @@ public class ZA1602_AvoidFalseSharingTests
             }
             """;
 
-        await CSharpAnalyzerVerifier<AvoidFalseSharingAnalyzer>
-            .VerifyNoDiagnosticAsync(source, "net8.0");
+        var test = new CSharpAnalyzerTest<AvoidFalseSharingAnalyzer, DefaultVerifier>
+        {
+            TestCode = source,
+            ReferenceAssemblies = ReferenceAssemblies.Net.Net80,
+        };
+
+        test.TestState.AnalyzerConfigFiles.Add(
+            ("/.globalconfig", """
+                is_global = true
+                build_property.TargetFramework = net8.0
+                dotnet_diagnostic.ZA1602.severity = none
+                """));
+
+        await test.RunAsync();
     }
 
     [Fact]
