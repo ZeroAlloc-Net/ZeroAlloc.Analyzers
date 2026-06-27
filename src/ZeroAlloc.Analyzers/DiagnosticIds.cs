@@ -75,4 +75,11 @@ public static class DiagnosticIds
     // ZA16xx — Data Layout (cache lines)
     public const string ReorderStructFields = "ZA1601";
     public const string AvoidFalseSharing = "ZA1602";
+
+    // ZA17xx — Native AOT compatibility
+    public const string AvoidExpressionCompile = "ZA1701";
+    public const string AvoidReflectionEmit = "ZA1702";
+    public const string AvoidDynamicGenericConstruction = "ZA1703";
+    public const string AvoidReflectionSerializers = "ZA1704";
+    public const string AvoidTypeLoadingByName = "ZA1705";
 }

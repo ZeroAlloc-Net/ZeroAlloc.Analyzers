@@ -1,5 +1,9 @@
 <Project>
   <ItemGroup>
     <CompilerVisibleProperty Include="TargetFramework" />
+    <!-- Lets the ZA17xx AOT rules stand down when the SDK's own AOT analyzer is enabled. -->
+    <CompilerVisibleProperty Include="PublishAot" />
+    <CompilerVisibleProperty Include="IsAotCompatible" />
+    <CompilerVisibleProperty Include="EnableAotAnalyzer" />
   </ItemGroup>
 </Project>
