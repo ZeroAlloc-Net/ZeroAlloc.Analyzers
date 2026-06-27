@@ -10,7 +10,7 @@ sidebar_position: 1
 
 ## What is ZeroAlloc.Analyzers?
 
-ZeroAlloc.Analyzers is a Roslyn analyzer NuGet package that detects allocation-heavy patterns in C# code and suggests zero or low-allocation alternatives. It covers 45 rules across 14 categories — from collection misuse and string concatenation to boxing, LINQ, async, value type pitfalls, and cache-line data layout. The package is multi-TFM aware: rules are automatically enabled or disabled based on the consuming project's `<TargetFramework>`, so you only see diagnostics that are actionable for your target runtime.
+ZeroAlloc.Analyzers is a Roslyn analyzer NuGet package that detects allocation-heavy patterns in C# code and suggests zero or low-allocation alternatives. It covers 50 rules across 15 categories — from collection misuse and string concatenation to boxing, LINQ, async, value type pitfalls, cache-line data layout, and Native AOT compatibility. The package is multi-TFM aware: rules are automatically enabled or disabled based on the consuming project's `<TargetFramework>`, so you only see diagnostics that are actionable for your target runtime.
 
 ---
 
@@ -121,7 +121,7 @@ See [configuration.md](configuration.md) for the full suppression and severity-t
 
 ## Rule Categories
 
-ZeroAlloc.Analyzers organizes its 45 rules into 14 categories:
+ZeroAlloc.Analyzers organizes its 50 rules into 15 categories:
 
 ```mermaid
 graph TD
@@ -140,13 +140,14 @@ graph TD
     ZeroAlloc --> D["Delegates<br/>ZA14xx (1 rule)"]
     ZeroAlloc --> V["Value Types<br/>ZA15xx (2 rules)"]
     ZeroAlloc --> DL["Data Layout<br/>ZA16xx (1 rule)"]
+    ZeroAlloc --> AOT["Native AOT<br/>ZA17xx (4 rules)"]
 ```
 
 ---
 
 ## All Rules
 
-The tables below list all 45 rules grouped by category. Rule IDs link to the corresponding section in each category's reference document. The **Min TFM** column shows the minimum target framework required for the rule to fire; `Any` means the rule applies to all supported frameworks.
+The tables below list all 50 rules grouped by category. Rule IDs link to the corresponding section in each category's reference document. The **Min TFM** column shows the minimum target framework required for the rule to fire; `Any` means the rule applies to all supported frameworks.
 
 ### Collections (ZA01xx)
 
@@ -262,6 +263,17 @@ The tables below list all 45 rules grouped by category. Rule IDs link to the cor
 | [ZA1601](rules/data-layout.md#za1601) | Reorder struct fields to reduce padding | Info | Any |
 
 > `ZA1602` (isolate Interlocked-updated fields to avoid false sharing) is disabled by default — see [Data Layout rules](rules/data-layout.md#za1602) to opt in.
+
+### Native AOT (ZA17xx)
+
+| Rule ID | Title | Severity | Min TFM |
+|---------|-------|----------|---------|
+| [ZA1701](rules/aot.md#za1701) | Avoid compiling expression trees at runtime | Info | Any |
+| [ZA1702](rules/aot.md#za1702) | Avoid runtime IL generation | Info | Any |
+| [ZA1703](rules/aot.md#za1703) | Avoid constructing generic types or methods at runtime | Info | Any |
+| [ZA1704](rules/aot.md#za1704) | Avoid reflection-based serializers | Info | Any |
+
+> `ZA1705` (avoid resolving types or assemblies by name) is disabled by default — see [Native AOT rules](rules/aot.md#za1705) to opt in. All ZA17xx rules stand down automatically when the SDK's own AOT analyzer is enabled.
 
 ---
 

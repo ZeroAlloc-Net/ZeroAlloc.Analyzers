@@ -47,3 +47,8 @@ ZA0607 | Performance.Linq | Warning | AvoidMultipleEnumerationAnalyzer
 ZA1104 | Performance.Async | Warning | AvoidSpanInAsyncMethodAnalyzer
 ZA1601 | Performance.DataLayout | Info | ReorderStructFieldsAnalyzer
 ZA1602 | Performance.DataLayout | Disabled | AvoidFalseSharingAnalyzer
+ZA1701 | Performance.Aot | Info | AvoidExpressionCompileAnalyzer
+ZA1702 | Performance.Aot | Info | AvoidReflectionEmitAnalyzer
+ZA1703 | Performance.Aot | Info | AvoidDynamicGenericConstructionAnalyzer
+ZA1704 | Performance.Aot | Info | AvoidReflectionSerializersAnalyzer
+ZA1705 | Performance.Aot | Disabled | AvoidTypeLoadingByNameAnalyzer

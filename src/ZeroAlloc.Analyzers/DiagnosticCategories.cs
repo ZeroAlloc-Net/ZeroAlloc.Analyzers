@@ -16,4 +16,5 @@ public static class DiagnosticCategories
     public const string Delegates = "Performance.Delegates";
     public const string ValueTypes = "Performance.ValueTypes";
     public const string DataLayout = "Performance.DataLayout";
+    public const string Aot = "Performance.Aot";
 }
