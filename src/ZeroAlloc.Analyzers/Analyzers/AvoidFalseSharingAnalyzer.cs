@@ -24,7 +24,7 @@ public sealed class AvoidFalseSharingAnalyzer : DiagnosticAnalyzer
     private static readonly DiagnosticDescriptor Rule = new(
         DiagnosticIds.AvoidFalseSharing,
         "Isolate Interlocked-updated fields to avoid false sharing",
-        "Field '{0}' is updated with Interlocked but shares a cache line with other fields in '{1}' — isolate hot fields on their own 64-byte cache line (e.g. [StructLayout(LayoutKind.Explicit)] with FieldOffset, or padding) to avoid false sharing",
+        "Field '{0}' is updated with Interlocked but shares a cache line with other fields in '{1}' — isolate hot fields on their own 64-byte cache line (for example with [StructLayout(LayoutKind.Explicit)] and FieldOffset, or padding) to avoid false sharing",
         DiagnosticCategories.DataLayout,
         DiagnosticSeverity.Info,
         isEnabledByDefault: false,
