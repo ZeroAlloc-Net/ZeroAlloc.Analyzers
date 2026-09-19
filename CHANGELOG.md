@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.5.2](https://github.com/ZeroAlloc-Net/ZeroAlloc.Analyzers/compare/v1.5.1...v1.5.2) (2026-09-19)
+
+
+### Bug Fixes
+
+* stop reporting ZA0209 where no boxing occurs, and catch the enum cases it hid ([#59](https://github.com/ZeroAlloc-Net/ZeroAlloc.Analyzers/issues/59)) ([22040cd](https://github.com/ZeroAlloc-Net/ZeroAlloc.Analyzers/commit/22040cd292e801c5ff2790da26766fe4daf9ca23))
+
 ## [1.5.1](https://github.com/ZeroAlloc-Net/ZeroAlloc.Analyzers/compare/v1.5.0...v1.5.1) (2026-09-19)
 
 
