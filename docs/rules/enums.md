@@ -133,6 +133,10 @@ public sealed class PermissionAuthorizationHandler
 
 `Enum.ToString()` uses reflection to look up the symbolic name for an enum value. Prior to .NET 9 there is no caching of the result string, so every call allocates a new `string` on the managed heap. On a hot path — a request handler, a serialisation loop, a metrics label builder — these small allocations accumulate and increase GC pressure. The fix is to cache name strings in a `static readonly Dictionary<TEnum, string>` built once at startup, or to use a `switch` expression for a fixed, well-known set of values. Both approaches reduce the per-call cost to a single dictionary lookup or branch, with zero heap allocation.
 
+The call does not have to be written out to cost you. **Concatenating a string with an enum emits the same `ToString()` call implicitly**, so `"Status: " + status` allocates exactly as `"Status: " + status.ToString()` does — 64 bytes per operation for both, measured on .NET 10. ZA0802 reports the implicit form too, which it previously missed entirely because there is no invocation node in the source to match. See [#51](https://github.com/ZeroAlloc-Net/ZeroAlloc.Analyzers/issues/51).
+
+The rule also follows type parameters. Every `T` satisfying `where T : struct, Enum` is an enum at runtime, so `value.ToString()` on such a `T` carries the same cost and is reported — see [#52](https://github.com/ZeroAlloc-Net/ZeroAlloc.Analyzers/issues/52). Note that concatenating an enum is **not** boxing, so [ZA0209](strings.md#za0209) does not apply; this rule is the one that does.
+
 ### Before
 
 ```csharp

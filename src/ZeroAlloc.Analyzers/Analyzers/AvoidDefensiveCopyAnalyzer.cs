@@ -66,8 +66,36 @@ public sealed class AvoidDefensiveCopyAnalyzer : DiagnosticAnalyzer
         if (calledMethod == null || calledMethod.IsReadOnly)
             return;
 
+        // An extension method invoked in reduced form is still a static call with the receiver
+        // passed by value, and compiles to the same IL as the explicit static form — which this
+        // analyzer already leaves alone. The copy is declared in the signature rather than
+        // inserted by the compiler to protect a readonly value, so it is not a defensive copy.
+        // `ref this` and `in this` receivers are a different matter and keep reporting. See #49.
+        if (IsByValueExtensionReceiver(calledMethod))
+            return;
+
         context.ReportDiagnostic(
             Diagnostic.Create(Rule, invocation.GetLocation(), calledMethod.Name, receiverName));
+    }
+
+    /// <summary>
+    /// True when the method is an extension whose <c>this</c> parameter is passed by value.
+    /// <see cref="IMethodSymbol.ReducedFrom"/> is non-null only for the reduced form, which is
+    /// the form that was being misdiagnosed; the explicit static call is not a member access on
+    /// the receiver and never reached this analyzer.
+    /// </summary>
+    private static bool IsByValueExtensionReceiver(IMethodSymbol method)
+    {
+        if (!method.IsExtensionMethod)
+            return false;
+
+        // ReducedFrom carries the original signature including the `this` parameter; the reduced
+        // symbol hides it behind the receiver.
+        var original = method.ReducedFrom ?? method;
+        if (original.Parameters.Length == 0)
+            return false;
+
+        return original.Parameters[0].RefKind == RefKind.None;
     }
 
     private static void AnalyzePropertyAccess(
