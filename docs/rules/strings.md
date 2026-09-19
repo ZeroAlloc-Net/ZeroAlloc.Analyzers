@@ -713,20 +713,38 @@ public sealed class AuditLogger
 
 ### Why
 
-The `+` operator between a `string` and a value type resolves to `string.Concat(object, object)`, which boxes the value type onto the heap. A single expression like `"Items: " + count + " in " + elapsed + "ms"` boxes each value type once and additionally creates intermediate strings for each sub-concatenation. Switching to string interpolation uses `DefaultInterpolatedStringHandler` on .NET 6+ — a ref struct that writes directly into a stack or pool buffer and calls `.ToString()` on each value without boxing. On older targets, interpolation still avoids the `string.Concat(object, object)` boxing overload by calling `.ToString()` on each operand before concatenation.
+The `+` operator between a `string` and a value type boxes **only when that value type does not override `ToString()`**. Without an override the compiler must box to reach `object.ToString()`; with one it calls the override directly and concatenates two strings.
+
+This is narrower than it first appears, and the rule was previously too eager. Measured on .NET 10 in Release with `GC.GetAllocatedBytesForCurrentThread`:
+
+| expression | bytes/op | boxes? |
+| --- | ---: | --- |
+| `"abc" + 123` | 40 | no |
+| `"abc" + 123.ToString()` | 40 | no |
+| `"abc" + AttributeTargets.Class` | 64 | no |
+| `"abc" + (object)123` | 64 | **yes** — 24 B is one box header on x64 |
+| `"abc" + struct` without a `ToString()` override | 80 | **yes** |
+| `"abc" + struct` with a `ToString()` override | 32 | no |
+
+Every primitive overrides `ToString()`, and every enum inherits `System.Enum`'s override, so `"Items: " + count` does **not** box. ZA0209 no longer reports those — see [#50](https://github.com/ZeroAlloc-Net/ZeroAlloc.Analyzers/issues/50). It fires for your own structs that leave `ToString()` unoverridden.
+
+Two related notes. Concatenating a string with an **enum** still allocates, because the implicit `ToString()` call does; that is [ZA0802](enums.md#za0802), not this rule. And interpolation remains preferable regardless of boxing: `DefaultInterpolatedStringHandler` on .NET 6+ writes into a stack or pooled buffer and avoids the intermediate strings each sub-concatenation creates.
 
 ### Before
 
 ```csharp
-// ❌ count (int) and elapsed (long) are each boxed; intermediate strings created
-string log = "Processed " + count + " items in " + elapsed + "ms";
+// ❌ Position is a struct with no ToString() override, so it is boxed to reach object.ToString()
+struct Position { public int X, Y; }
+
+string log = "Moved to " + position;
 ```
 
 ### After
 
 ```csharp
-// ✓ No boxing — interpolation handler calls .ToString() on each value type directly
-string log = $"Processed {count} items in {elapsed}ms";
+// ✓ No boxing — either give the struct a ToString() override, or interpolate, which
+//   calls the handler's AppendFormatted<T> without boxing
+string log = $"Moved to {position}";
 ```
 
 ### Real-world example

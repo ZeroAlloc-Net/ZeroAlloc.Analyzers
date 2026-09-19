@@ -45,15 +45,44 @@ public sealed class AvoidValueTypeBoxingInStringConcatAnalyzer : DiagnosticAnaly
         bool rightIsString = rightType.SpecialType == SpecialType.System_String;
 
         // One side must be string, the other a value type (not string)
-        if (leftIsString && rightType.IsValueType && rightType.SpecialType != SpecialType.System_String)
+        if (leftIsString && rightType.IsValueType && rightType.SpecialType != SpecialType.System_String
+            && !OverridesToString(rightType))
         {
             var typeName = rightType.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat);
             context.ReportDiagnostic(Diagnostic.Create(Rule, binary.OperatorToken.GetLocation(), typeName));
         }
-        else if (rightIsString && leftType.IsValueType && leftType.SpecialType != SpecialType.System_String)
+        else if (rightIsString && leftType.IsValueType && leftType.SpecialType != SpecialType.System_String
+            && !OverridesToString(leftType))
         {
             var typeName = leftType.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat);
             context.ReportDiagnostic(Diagnostic.Create(Rule, binary.OperatorToken.GetLocation(), typeName));
         }
+    }
+
+    /// <summary>
+    /// Boxing in string concatenation happens exactly when the operand type does not override
+    /// <c>ToString()</c>, because the compiler must then box to reach <c>object.ToString()</c>.
+    /// When an override exists the compiler calls it directly and concatenates two strings.
+    ///
+    /// Measured on .NET 10 Release, bytes per operation:
+    /// <c>"abc" + 123</c> 40 B, identical to <c>"abc" + 123.ToString()</c>;
+    /// <c>"abc" + (object)123</c> 64 B, exactly one box larger.
+    /// A struct without an override costs 80 B; the same struct with one costs 32 B. See #50.
+    /// </summary>
+    private static bool OverridesToString(ITypeSymbol type)
+    {
+        // Every enum inherits System.Enum's override.
+        if (type.TypeKind == TypeKind.Enum)
+            return true;
+
+        // A value type cannot inherit from another value type, so only its own members matter.
+        // Walking to a base would find System.ValueType's override and wrongly clear every struct.
+        foreach (var member in type.GetMembers("ToString"))
+        {
+            if (member is IMethodSymbol { Parameters.Length: 0, IsOverride: true })
+                return true;
+        }
+
+        return false;
     }
 }

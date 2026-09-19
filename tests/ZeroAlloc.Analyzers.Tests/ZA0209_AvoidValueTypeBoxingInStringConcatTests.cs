@@ -4,15 +4,19 @@ namespace ZeroAlloc.Analyzers.Tests;
 
 public class ZA0209_AvoidValueTypeBoxingInStringConcatTests
 {
+    // int does not box in concatenation — the compiler calls Int32.ToString directly. These
+    // cases now use a struct with no ToString override, which is what actually boxes. See #50.
     [Fact]
-    public async Task StringPlusInt_Reports()
+    public async Task StringPlusBoxingStruct_Reports()
     {
         var source = """
+            struct Counter { public int Value; }
+
             class C
             {
                 void M()
                 {
-                    int count = 42;
+                    var count = new Counter();
                     var s = "Count: " {|#0:+|} count;
                 }
             }
@@ -21,21 +25,23 @@ public class ZA0209_AvoidValueTypeBoxingInStringConcatTests
         var expected = CSharpAnalyzerVerifier<AvoidValueTypeBoxingInStringConcatAnalyzer>
             .Diagnostic(DiagnosticIds.AvoidValueTypeBoxingInStringConcat)
             .WithLocation(0)
-            .WithArguments("int");
+            .WithArguments("Counter");
 
         await CSharpAnalyzerVerifier<AvoidValueTypeBoxingInStringConcatAnalyzer>
             .VerifyAnalyzerAsync(source, "net8.0", expected);
     }
 
     [Fact]
-    public async Task IntPlusString_Reports()
+    public async Task BoxingStructPlusString_Reports()
     {
         var source = """
+            struct Counter { public int Value; }
+
             class C
             {
                 void M()
                 {
-                    int count = 42;
+                    var count = new Counter();
                     var s = count {|#0:+|} " items";
                 }
             }
@@ -44,14 +50,16 @@ public class ZA0209_AvoidValueTypeBoxingInStringConcatTests
         var expected = CSharpAnalyzerVerifier<AvoidValueTypeBoxingInStringConcatAnalyzer>
             .Diagnostic(DiagnosticIds.AvoidValueTypeBoxingInStringConcat)
             .WithLocation(0)
-            .WithArguments("int");
+            .WithArguments("Counter");
 
         await CSharpAnalyzerVerifier<AvoidValueTypeBoxingInStringConcatAnalyzer>
             .VerifyAnalyzerAsync(source, "net8.0", expected);
     }
 
+    // Enums inherit System.Enum's ToString override, so the compiler calls it rather than
+    // boxing. ZA0802 is the rule that belongs here, and it now fires — see #50 and #51.
     [Fact]
-    public async Task StringPlusEnum_Reports()
+    public async Task StringPlusEnum_NoDiagnostic()
     {
         var source = """
             class C
@@ -60,18 +68,13 @@ public class ZA0209_AvoidValueTypeBoxingInStringConcatTests
 
                 void M()
                 {
-                    var s = "Status: " {|#0:+|} Status.Active;
+                    var s = "Status: " + Status.Active;
                 }
             }
             """;
 
-        var expected = CSharpAnalyzerVerifier<AvoidValueTypeBoxingInStringConcatAnalyzer>
-            .Diagnostic(DiagnosticIds.AvoidValueTypeBoxingInStringConcat)
-            .WithLocation(0)
-            .WithArguments("Status");
-
         await CSharpAnalyzerVerifier<AvoidValueTypeBoxingInStringConcatAnalyzer>
-            .VerifyAnalyzerAsync(source, "net8.0", expected);
+            .VerifyAnalyzerAsync(source, "net8.0");
     }
 
     [Fact]
@@ -146,14 +149,17 @@ public class ZA0209_AvoidValueTypeBoxingInStringConcatTests
     }
 
     [Fact]
-    public async Task ChainedConcatWithTwoValueTypes_ReportsTwice()
+    public async Task ChainedConcatWithTwoBoxingStructs_ReportsTwice()
     {
         var source = """
+            struct Counter { public int Value; }
+
             class C
             {
                 void M()
                 {
-                    int a = 1, b = 2;
+                    var a = new Counter();
+                    var b = new Counter();
                     var s = "x" {|#0:+|} a {|#1:+|} b;
                 }
             }
@@ -162,12 +168,12 @@ public class ZA0209_AvoidValueTypeBoxingInStringConcatTests
         var expected0 = CSharpAnalyzerVerifier<AvoidValueTypeBoxingInStringConcatAnalyzer>
             .Diagnostic(DiagnosticIds.AvoidValueTypeBoxingInStringConcat)
             .WithLocation(0)
-            .WithArguments("int");
+            .WithArguments("Counter");
 
         var expected1 = CSharpAnalyzerVerifier<AvoidValueTypeBoxingInStringConcatAnalyzer>
             .Diagnostic(DiagnosticIds.AvoidValueTypeBoxingInStringConcat)
             .WithLocation(1)
-            .WithArguments("int");
+            .WithArguments("Counter");
 
         await CSharpAnalyzerVerifier<AvoidValueTypeBoxingInStringConcatAnalyzer>
             .VerifyAnalyzerAsync(source, "net8.0", expected0, expected1);
