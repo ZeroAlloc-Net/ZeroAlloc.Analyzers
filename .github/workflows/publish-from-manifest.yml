@@ -40,7 +40,11 @@ jobs:
         run: dotnet restore
 
       - name: Build
-        run: dotnet build --configuration Release --no-restore
+        # -p:Version must be passed HERE, not only to pack. The pack step below runs
+        # --no-build and overrides PackageVersion alone, so a build without this leaves
+        # the assembly stamped with a fallback version while the package claims the real
+        # one. See ZeroAlloc-Net/.github#26.
+        run: dotnet build --configuration Release --no-restore -p:Version=${{ steps.version.outputs.version }}
 
       - name: Test
         run: dotnet test --configuration Release --no-build
