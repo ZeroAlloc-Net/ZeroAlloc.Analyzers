@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.5.1](https://github.com/ZeroAlloc-Net/ZeroAlloc.Analyzers/compare/v1.5.0...v1.5.1) (2026-09-19)
+
+
+### Bug Fixes
+
+* **ci:** stamp the assembly version when publishing from a manifest ([#57](https://github.com/ZeroAlloc-Net/ZeroAlloc.Analyzers/issues/57)) ([b7291fd](https://github.com/ZeroAlloc-Net/ZeroAlloc.Analyzers/commit/b7291fdaea57ea7eb783df8a7883ab5ea33cb4f8))
+
 ## [1.5.0](https://github.com/ZeroAlloc-Net/ZeroAlloc.Analyzers/compare/v1.4.0...v1.5.0) (2026-06-27)
 
 
