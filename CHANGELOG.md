@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.5.3](https://github.com/ZeroAlloc-Net/ZeroAlloc.Analyzers/compare/v1.5.2...v1.5.3) (2026-09-20)
+
+
+### Bug Fixes
+
+* **ci:** pin the SDK floor at the .NET 10 GA band, not the newest patch ([#61](https://github.com/ZeroAlloc-Net/ZeroAlloc.Analyzers/issues/61)) ([8b9cb21](https://github.com/ZeroAlloc-Net/ZeroAlloc.Analyzers/commit/8b9cb21e38c443b160e018a3422e4056eba700d1))
+
 ## [1.5.2](https://github.com/ZeroAlloc-Net/ZeroAlloc.Analyzers/compare/v1.5.1...v1.5.2) (2026-09-19)
 
 
