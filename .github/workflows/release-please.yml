@@ -52,8 +52,25 @@ jobs:
       - name: Test
         run: dotnet test --configuration Release --no-build --verbosity normal
 
-      - name: Pack
-        run: dotnet pack src/ZeroAlloc.Analyzers.Package/ZeroAlloc.Analyzers.Package.csproj --configuration Release --no-build --output ./artifacts -p:Version=${{ needs.release-please.outputs.version }}
+      - name: Pack every src package
+        run: |
+          # Discovered, not listed. A hardcoded list silently omits any newly added
+          # package: the release still goes green and the package never appears on
+          # NuGet. Defaulting to pack means a new src project ships unless it opts
+          # out, so the failure mode is a surplus package someone notices rather
+          # than a missing one nobody does.
+          for csproj in src/*/*.csproj; do
+            if grep -q "<IsPackable>false</IsPackable>" "$csproj"; then
+              echo "Skipping $csproj (IsPackable=false)"
+              continue
+            fi
+            echo "Packing $csproj"
+            dotnet pack "$csproj" --configuration Release --no-build --output ./artifacts -p:Version=${{ needs.release-please.outputs.version }}
+          done
+          if ! ls ./artifacts/*.nupkg >/dev/null 2>&1; then
+            echo "::error::no packages were produced"
+            exit 1
+          fi
 
       - name: Push to NuGet
         run: dotnet nuget push ./artifacts/*.nupkg --source https://api.nuget.org/v3/index.json --api-key ${{ secrets.NUGET_API_KEY }} --skip-duplicate
