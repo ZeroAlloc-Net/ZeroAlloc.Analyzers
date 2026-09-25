@@ -76,3 +76,12 @@ jobs:
         with:
           name: nuget-package
           path: src/ZeroAlloc.Analyzers.Package/bin/Release/*.nupkg
+
+  # A release PR must mark everything it releases as shipped: the analyzer rules in
+  # AnalyzerReleases.Unshipped.md and the API in every PublicAPI.Unshipped.txt. The
+  # ship-release-tracking job in release-please.yml commits that move onto the branch;
+  # this fails the PR if the move is missing, or if a later commit on the branch adds
+  # entries after it. Shared from ZeroAlloc-Net/.github; see ZeroAlloc-Net/.github#38.
+  release-tracking:
+    if: ${{ github.event_name == 'pull_request' && startsWith(github.head_ref, 'release-please--') }}
+    uses: ZeroAlloc-Net/.github/.github/workflows/release-tracking.yml@main

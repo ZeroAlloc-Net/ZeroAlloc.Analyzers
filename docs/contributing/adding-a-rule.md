@@ -404,7 +404,11 @@ Rule ID | Category | Severity | Notes
 ZA0110 | Performance.Collections | Warning | AvoidDictionaryKeysContainsAnalyzer
 ```
 
-This file is consumed by the Roslyn SDK build tooling to generate the analyzer release notes embedded in the NuGet package. Rules that appear here but not in `AnalyzerReleases.Shipped.md` are considered unshipped — on the next versioned release they will be moved to the shipped file. Always add new rules to the unshipped file, never directly to the shipped file.
+The Roslyn release-tracking analyzers read this file. The build fails if a descriptor has no row here or in `AnalyzerReleases.Shipped.md`. Always add new rules to the unshipped file, never directly to the shipped file.
+
+`AnalyzerReleases.Shipped.md` records the release each rule first shipped in, and any release that removed one. Once a rule has shipped, changing its severity or category, or removing it, has to be declared under `### Changed Rules` or `### Removed Rules` in the unshipped file. An undeclared change to a shipped rule fails the build.
+
+You never move rows to the shipped file by hand. When release-please opens or updates the release PR, the `ship-release-tracking` job in `.github/workflows/release-please.yml` moves them into a `## Release x.y.z` section on that branch. The `release-tracking` job in `ci.yml` fails a release PR while anything is still unshipped. Both come from [ZeroAlloc-Net/.github](https://github.com/ZeroAlloc-Net/.github/blob/main/scripts/ship-release-tracking.py). If the release PR lacks the move, run `python3 <path to ZeroAlloc-Net/.github>/scripts/ship-release-tracking.py <version>` from the root of the release branch and push the result.
 
 ---
 
