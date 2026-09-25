@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.5.4](https://github.com/ZeroAlloc-Net/ZeroAlloc.Analyzers/compare/v1.5.3...v1.5.4) (2026-09-25)
+
+
+### Bug Fixes
+
+* mark released analyzer rules as shipped and automate the move on release ([#66](https://github.com/ZeroAlloc-Net/ZeroAlloc.Analyzers/issues/66)) ([89adc3b](https://github.com/ZeroAlloc-Net/ZeroAlloc.Analyzers/commit/89adc3b6d039b9f2a26b846b9f974887f960da7f))
+
 ## [1.5.3](https://github.com/ZeroAlloc-Net/ZeroAlloc.Analyzers/compare/v1.5.2...v1.5.3) (2026-09-20)
 
 
