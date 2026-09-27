@@ -56,7 +56,10 @@ jobs:
         run: dotnet restore
 
       - name: Build
-        run: dotnet build --no-restore -c Release
+        # The version goes to the build, not only to pack: pack runs --no-build, so the
+        # assemblies it packs carry whatever version this step stamped. Without it the
+        # CI package claimed the SDK default 1.0.0. See ZeroAlloc-Net/.github#36.
+        run: dotnet build --no-restore -c Release -p:Version=${{ steps.gitversion.outputs.semver }}
 
       - name: Test
         run: dotnet test --no-build -c Release --verbosity normal --logger "trx;LogFileName=test-results.trx"
@@ -69,7 +72,7 @@ jobs:
           path: "**/*.trx"
 
       - name: Pack
-        run: dotnet pack src/ZeroAlloc.Analyzers.Package/ZeroAlloc.Analyzers.Package.csproj -c Release --no-build
+        run: dotnet pack src/ZeroAlloc.Analyzers.Package/ZeroAlloc.Analyzers.Package.csproj -c Release --no-build -p:Version=${{ steps.gitversion.outputs.semver }}
 
       - name: Upload NuGet artifact
         uses: actions/upload-artifact@v7
