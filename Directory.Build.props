@@ -1,4 +1,56 @@
 <Project>
+  <!--
+    Release version guard, ZeroAlloc-Net/.github#36. Keep this block first in the file.
+
+    A package must never ship with a fallback version. Pack fails when:
+      ZAVERSION001  no version was supplied, so the package would carry a placeholder such as
+                    the SDK default 1.0.0 or a csproj's 0.0.0-local;
+      ZAVERSION002  the assembly being packed does not carry the package's version. This is
+                    how #26 shipped: build without -p:Version, then pack with no-build.
+
+    The marker below is read before the SDK or any csproj assigns a default, so it is true
+    only when the version came from outside the project: -p:Version or -p:PackageVersion.
+    Build, test and publish never run the check, in Debug or Release; only pack does.
+  -->
+  <PropertyGroup>
+    <ZeroAllocVersionSupplied Condition="'$(Version)$(PackageVersion)' != ''">true</ZeroAllocVersionSupplied>
+  </PropertyGroup>
+
+  <!-- BeforeTargets GenerateNuspec: after pack's build step, if any, before the nupkg is written. -->
+  <Target Name="ZeroAllocVerifyReleaseVersion"
+          BeforeTargets="GenerateNuspec"
+          Condition="'$(IsPackable)' == 'true'">
+    <Error Code="ZAVERSION001"
+           Condition="'$(ZeroAllocVersionSupplied)' != 'true'"
+           Text="$(MSBuildProjectName): no release version was supplied, so the package would ship as $(PackageVersion). Pass it on the command line: dotnet pack -c Release -p:Version=1.2.3. When packing with --no-build, pass -p:Version to the build step too." />
+
+    <!-- The assemblies that go into the package: one per target framework. -->
+    <ItemGroup>
+      <_ZeroAllocPackedTfm Include="$(TargetFrameworks)" Condition="'$(TargetFramework)' == ''" />
+    </ItemGroup>
+    <MSBuild Projects="$(MSBuildProjectFullPath)"
+             Targets="GetTargetPath"
+             Properties="TargetFramework=%(_ZeroAllocPackedTfm.Identity)"
+             Condition="'@(_ZeroAllocPackedTfm)' != ''">
+      <Output TaskParameter="TargetOutputs" ItemName="_ZeroAllocPackedAssembly" />
+    </MSBuild>
+    <ItemGroup>
+      <_ZeroAllocPackedAssembly Include="$(TargetPath)" Condition="'$(TargetFramework)' != ''" />
+      <_ZeroAllocPackedAssembly Remove="@(_ZeroAllocPackedAssembly)" Condition="!Exists('%(FullPath)')" />
+    </ItemGroup>
+    <GetAssemblyIdentity AssemblyFiles="@(_ZeroAllocPackedAssembly)">
+      <Output TaskParameter="Assemblies" ItemName="_ZeroAllocPackedIdentity" />
+    </GetAssemblyIdentity>
+
+    <!--
+      The SDK derives AssemblyVersion from Version. VersionEquals ignores prerelease and build
+      metadata and pads missing parts with 0, so 1.2.3-alpha.4 matches an assembly at 1.2.3.0.
+    -->
+    <Error Code="ZAVERSION002"
+           Condition="!$([MSBuild]::VersionEquals('%(_ZeroAllocPackedIdentity.Version)', '$(PackageVersion)'))"
+           Text="$(MSBuildProjectName): the built assembly %(_ZeroAllocPackedIdentity.Name) is version %(_ZeroAllocPackedIdentity.Version), but the package is $(PackageVersion), so the build did not get the release version. Pass -p:Version=$(PackageVersion) to every command that builds: dotnet build before a pack with --no-build, or dotnet pack itself. -p:PackageVersion alone labels the package without stamping the assembly." />
+  </Target>
+
   <PropertyGroup>
     <LangVersion>latest</LangVersion>
     <ImplicitUsings>enable</ImplicitUsings>
