@@ -685,6 +685,37 @@ public class ZA1402_UseStatePassingOverloadTests
     }
 
     [Fact]
+    public async Task GetOrAddCapturingScopedNamedVariable_EscapesTheName()
+    {
+        // 'scoped' is a contextual keyword that reads as a modifier in a lambda parameter list.
+        var source = """
+            using System.Collections.Concurrent;
+
+            class C
+            {
+                string M(ConcurrentDictionary<int, string> cache, string scoped)
+                {
+                    return cache.GetOrAdd(1, {|#0:k => scoped + k|});
+                }
+            }
+            """;
+
+        var fixedSource = """
+            using System.Collections.Concurrent;
+
+            class C
+            {
+                string M(ConcurrentDictionary<int, string> cache, string scoped)
+                {
+                    return cache.GetOrAdd(1, static (k, @scoped) => scoped + k, @scoped);
+                }
+            }
+            """;
+
+        await VerifyFix(source, fixedSource, "ConcurrentDictionary.GetOrAdd", "'scoped'");
+    }
+
+    [Fact]
     public async Task QueueUserWorkItemCapturingKeywordNamedVariable_EscapesTheName()
     {
         var source = """

@@ -171,7 +171,8 @@ public sealed class UseStatePassingOverloadCodeFixProvider : CodeFixProvider
 
     // The captured name comes from the symbol, without its '@'; a keyword needs it back to stay a name.
     private static SyntaxToken Identifier(string name) =>
-        SyntaxFacts.GetKeywordKind(name) == SyntaxKind.None
+        // Contextual keywords such as 'scoped' read as modifiers in a lambda parameter list, so escape those too.
+        SyntaxFacts.GetKeywordKind(name) == SyntaxKind.None && SyntaxFacts.GetContextualKeywordKind(name) == SyntaxKind.None
             ? SyntaxFactory.Identifier(name)
             : SyntaxFactory.ParseToken("@" + name);
 }
