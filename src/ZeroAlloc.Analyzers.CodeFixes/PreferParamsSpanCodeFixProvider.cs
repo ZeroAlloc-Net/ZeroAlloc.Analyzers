@@ -33,18 +33,25 @@ public sealed class PreferParamsSpanCodeFixProvider : CodeFixProvider
         context.RegisterCodeFix(
             CodeAction.Create(
                 "Declare as params ReadOnlySpan<T>",
-                ct => ReplaceAsync(context.Document, parameter, arrayType, ct),
+                ct => ReplaceAsync(context.Document, parameter, ct),
                 equivalenceKey: DiagnosticIds.PreferParamsSpan),
             diagnostic);
     }
 
-    private static async Task<Document> ReplaceAsync(Document document, ParameterSyntax parameter, ArrayTypeSyntax arrayType, CancellationToken ct)
+    private static async Task<Document> ReplaceAsync(Document document, ParameterSyntax parameter, CancellationToken ct)
     {
         var root = await document.GetSyntaxRootAsync(ct);
-        if (root is null)
+        var model = await document.GetSemanticModelAsync(ct);
+        if (root is null
+            || model?.GetDeclaredSymbol(parameter, ct) is not { Type: IArrayTypeSymbol arraySymbol }
+            || parameter.Type is null)
+        {
             return document;
+        }
 
-        var spanType = SyntaxFactory.ParseTypeName($"ReadOnlySpan<{arrayType.ElementType}>").WithTriviaFrom(arrayType);
+        // The element type of a jagged array keeps its inner brackets.
+        var elementType = arraySymbol.ElementType.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat);
+        var spanType = SyntaxFactory.ParseTypeName($"ReadOnlySpan<{elementType}>").WithTriviaFrom(parameter.Type);
         var newRoot = root.ReplaceNode(parameter, parameter.WithType(spanType));
         return document.WithSyntaxRoot(UsingDirectives.EnsureSystem(newRoot));
     }

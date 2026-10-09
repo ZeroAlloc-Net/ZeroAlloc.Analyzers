@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using System.Collections.Immutable;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Diagnostics;
 using Microsoft.CodeAnalysis.Operations;
 
@@ -27,7 +28,7 @@ public sealed class PreferParamsSpanAnalyzer : DiagnosticAnalyzer
 
     public override void Initialize(AnalysisContext context)
     {
-        context.ConfigureGeneratedCodeAnalysis(GeneratedCodeAnalysisFlags.None);
+        context.ConfigureGeneratedCodeAnalysis(GeneratedCodeAnalysisFlags.Analyze);
         context.EnableConcurrentExecution();
         context.RegisterCompilationStartAction(static start =>
         {
@@ -35,23 +36,68 @@ public sealed class PreferParamsSpanAnalyzer : DiagnosticAnalyzer
                 return;
 
             var readOnlySpan = start.Compilation.GetTypeByMetadataName("System.ReadOnlySpan`1");
-            if (readOnlySpan is null)
+
+            // A params span only avoids the allocation through an inline array, which needs .NET 8.
+            var inlineArray = start.Compilation.GetTypeByMetadataName("System.Runtime.CompilerServices.InlineArrayAttribute");
+            if (readOnlySpan is null || inlineArray is null)
                 return;
 
+            // Friend assemblies can call internal methods, where this rule cannot see the call.
+            var hasFriendAssemblies = start.Compilation.Assembly.GetAttributes().Any(a =>
+                a.AttributeClass is { Name: "InternalsVisibleToAttribute" } attribute
+                && attribute.ContainingNamespace.ToDisplayString() == "System.Runtime.CompilerServices");
+
+            var expressionTreeBase = start.Compilation.GetTypeByMetadataName("System.Linq.Expressions.LambdaExpression");
+
             var candidates = new ConcurrentDictionary<IMethodSymbol, bool>(SymbolEqualityComparer.Default);
-            var methodGroups = new ConcurrentDictionary<IMethodSymbol, bool>(SymbolEqualityComparer.Default);
+
+            // Methods whose parameter type is fixed by a method group, an interface or a caller.
+            var excluded = new ConcurrentDictionary<IMethodSymbol, bool>(SymbolEqualityComparer.Default);
 
             // A method group converted to a delegate fixes the parameter type.
             start.RegisterOperationAction(context =>
             {
                 var reference = (IMethodReferenceOperation)context.Operation;
-                methodGroups[reference.Method.OriginalDefinition] = true;
+                excluded[reference.Method.OriginalDefinition] = true;
             }, OperationKind.MethodReference);
+
+            // A caller that passes a covariant array or null, or an expression tree, cannot call the span form.
+            start.RegisterOperationAction(context =>
+            {
+                var operation = context.Operation;
+                var (target, arguments) = operation switch
+                {
+                    IInvocationOperation invocation => (invocation.TargetMethod, invocation.Arguments),
+                    IObjectCreationOperation creation when creation.Constructor is not null => (creation.Constructor, creation.Arguments),
+                    _ => default,
+                };
+
+                if (target is null || target.Parameters.IsEmpty || !target.Parameters[target.Parameters.Length - 1].IsParams)
+                    return;
+
+                if (IsInExpressionTree(operation, expressionTreeBase) || PassesArrayOfOtherType(arguments))
+                    excluded[target.OriginalDefinition] = true;
+            }, OperationKind.Invocation, OperationKind.ObjectCreation);
+
+            // An interface member can be implemented by a method a base class declares.
+            start.RegisterSymbolAction(context =>
+            {
+                var type = (INamedTypeSymbol)context.Symbol;
+                foreach (var iface in type.AllInterfaces)
+                {
+                    foreach (var member in iface.GetMembers().OfType<IMethodSymbol>())
+                    {
+                        if (type.FindImplementationForInterfaceMember(member) is IMethodSymbol implementation)
+                            excluded[implementation.OriginalDefinition] = true;
+                    }
+                }
+            }, SymbolKind.NamedType);
 
             start.RegisterOperationBlockAction(context =>
             {
                 if (context.OwningSymbol is IMethodSymbol method
                     && IsCandidate(method)
+                    && !method.DeclaringSyntaxReferences.Any(reference => GeneratedCode.IsGenerated(reference.SyntaxTree))
                     && UsesAreSpanCompatible(context.OperationBlocks, method.Parameters[method.Parameters.Length - 1], readOnlySpan))
                 {
                     candidates[method] = true;
@@ -62,11 +108,11 @@ public sealed class PreferParamsSpanAnalyzer : DiagnosticAnalyzer
             {
                 foreach (var method in candidates.Keys)
                 {
-                    if (methodGroups.ContainsKey(method))
+                    if (excluded.ContainsKey(method))
                         continue;
 
                     var parameter = method.Parameters[method.Parameters.Length - 1];
-                    var exposed = IsVisibleOutsideAssembly(method);
+                    var exposed = IsVisibleOutsideAssembly(method, hasFriendAssemblies);
                     var properties = ImmutableDictionary<string, string?>.Empty
                         .Add(ExposedProperty, exposed ? "true" : "false");
 
@@ -92,6 +138,13 @@ public sealed class PreferParamsSpanAnalyzer : DiagnosticAnalyzer
             return false;
         }
 
+        // A primary constructor parameter is captured by member bodies this rule does not scan.
+        if (method.MethodKind == MethodKind.Constructor
+            && method.DeclaringSyntaxReferences.Any(reference => reference.GetSyntax() is TypeDeclarationSyntax))
+        {
+            return false;
+        }
+
         // The signature is fixed by another declaration, or a span parameter is not allowed.
         if (method.IsOverride || method.IsVirtual || method.IsAbstract || method.IsExtern
             || method.IsAsync || method.IsIterator
@@ -99,15 +152,6 @@ public sealed class PreferParamsSpanAnalyzer : DiagnosticAnalyzer
             || !method.ExplicitInterfaceImplementations.IsEmpty)
         {
             return false;
-        }
-
-        foreach (var iface in method.ContainingType.AllInterfaces)
-        {
-            foreach (var member in iface.GetMembers().OfType<IMethodSymbol>())
-            {
-                if (SymbolEqualityComparer.Default.Equals(method.ContainingType.FindImplementationForInterfaceMember(member), method))
-                    return false;
-            }
         }
 
         return true;
@@ -137,11 +181,53 @@ public sealed class PreferParamsSpanAnalyzer : DiagnosticAnalyzer
         return true;
     }
 
-    private static bool IsVisibleOutsideAssembly(ISymbol symbol)
+    // Normal form with an array whose type is not exactly the parameter type: a covariant array, or null.
+    private static bool PassesArrayOfOtherType(ImmutableArray<IArgumentOperation> arguments)
+    {
+        foreach (var argument in arguments)
+        {
+            if (argument.Parameter is not { IsParams: true } parameter || argument.ArgumentKind != ArgumentKind.Explicit)
+                continue;
+
+            var value = argument.Value;
+            while (value is IConversionOperation { IsImplicit: true } conversion)
+                value = conversion.Operand;
+
+            if (value.Type is null || !SymbolEqualityComparer.Default.Equals(value.Type, parameter.Type))
+                return true;
+        }
+
+        return false;
+    }
+
+    // An expression tree cannot call a method with a params span.
+    private static bool IsInExpressionTree(IOperation operation, INamedTypeSymbol? lambdaExpression)
+    {
+        if (lambdaExpression is null)
+            return false;
+
+        for (var current = operation.Parent; current is not null; current = current.Parent)
+        {
+            if (current is IAnonymousFunctionOperation { Parent: IConversionOperation { Type: { } type } })
+            {
+                for (var baseType = type; baseType is not null; baseType = baseType.BaseType)
+                {
+                    if (SymbolEqualityComparer.Default.Equals(baseType, lambdaExpression))
+                        return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    private static bool IsVisibleOutsideAssembly(ISymbol symbol, bool hasFriendAssemblies)
     {
         for (var current = symbol; current is not null and not INamespaceSymbol; current = current.ContainingSymbol)
         {
-            if (current.DeclaredAccessibility is not (Accessibility.Public or Accessibility.Protected or Accessibility.ProtectedOrInternal))
+            var visible = current.DeclaredAccessibility is Accessibility.Public or Accessibility.Protected or Accessibility.ProtectedOrInternal
+                || hasFriendAssemblies && current.DeclaredAccessibility is Accessibility.Internal or Accessibility.ProtectedAndInternal;
+            if (!visible)
                 return false;
         }
 

@@ -612,7 +612,7 @@ public void Process(Order order, string[] notes = null)
 
 ## ZA0110 — Declare params as ReadOnlySpan\<T\> {#za0110}
 
-> **Severity**: Info | **Min TFM**: Any (C# 13) | **Code fix**: Yes, for methods not visible outside the assembly
+> **Severity**: Info | **Min TFM**: .NET 8 (C# 13) | **Code fix**: Yes, for methods not visible outside the assembly
 
 ### Why
 
@@ -620,7 +620,7 @@ Every call to a `params T[]` method that passes individual arguments allocates a
 
 The rule reports a `params T[]` parameter whose method only reads it: indexing, `Length`, `foreach`, or passing it on as a `ReadOnlySpan<T>`. A method that stores, returns or captures the array, writes its elements, or is used as a method group keeps the array. So do overrides, interface implementations, virtual, abstract and partial methods, async methods and iterators.
 
-For a method other assemblies can call, changing the parameter type is a binary breaking change, so the rule suggests adding a `params ReadOnlySpan<T>` overload instead and offers no code fix. Because it has to see every use of the method, the rule reports when the whole project is analyzed, on build or with full-solution analysis, not while you type.
+For a method other assemblies can call, changing the parameter type is a binary breaking change, so the rule suggests adding a `params ReadOnlySpan<T>` overload instead and offers no code fix. Because it has to see every use of the method, the rule reports when the whole project is analyzed, on build or with full-solution analysis, not while you type. The rule needs .NET 8 or later, where `params ReadOnlySpan<T>` uses an inline array, and C# 13. When the assembly has `InternalsVisibleTo`, internal methods count as visible outside the assembly too.
 
 ### Before
 
