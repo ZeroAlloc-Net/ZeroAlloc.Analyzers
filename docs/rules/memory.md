@@ -474,9 +474,9 @@ public uint Checksum(Stream stream)
 
 ### Why
 
-`static readonly int[] Table = { … }` allocates an array when the type is initialized and copies the constants into it. A `static ReadOnlySpan<int> Table => [ … ];` property reads them straight from the assembly's data section: no allocation, and NativeAOT can pre-initialize it. Call sites that index the table, read `Length` or `foreach` over it compile unchanged.
+`static readonly int[] Table = { … }` allocates an array when the type is initialized and copies the constants into it. A `static ReadOnlySpan<int> Table => [ … ];` property reads them straight from the assembly's data section, with no allocation and no type-initializer work. Call sites that index the table, read `Length` or `foreach` over it compile unchanged.
 
-The rule reports `private` and `internal` tables of primitives whose every use is a read. `byte`, `sbyte` and `bool` tables qualify on every runtime; other primitives need `RuntimeHelpers.CreateSpan`, which arrived in .NET 7. Because it has to see every use of the field, the rule reports when the whole project is analyzed, on build or with full-solution analysis, not while you type.
+The rule reports `private` and `internal` tables of primitives whose every use is a read. `byte`, `sbyte` and `bool` tables qualify on every runtime; other primitives need `RuntimeHelpers.CreateSpan`, which arrived in .NET 7. Because it has to see every use of the field, the rule reports when the whole project is analyzed, on build or with full-solution analysis, not while you type. The code fix writes a collection expression on C# 12 and later and `new T[] { … }` before that; the compiler reads both from static data.
 
 ### Before
 

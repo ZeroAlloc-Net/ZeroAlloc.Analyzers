@@ -5,6 +5,7 @@ using Microsoft.CodeAnalysis.CodeActions;
 using Microsoft.CodeAnalysis.CodeFixes;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
+using Microsoft.CodeAnalysis.Text;
 
 namespace ZeroAlloc.Analyzers.CodeFixes;
 
@@ -21,8 +22,8 @@ public sealed class UseReadOnlySpanForConstantTableCodeFixProvider : CodeFixProv
         var declarator = root?.FindNode(context.Diagnostics[0].Location.SourceSpan)
             .FirstAncestorOrSelf<VariableDeclaratorSyntax>();
         if (declarator?.Parent?.Parent is not FieldDeclarationSyntax field
-            || field.Declaration.Type is not ArrayTypeSyntax arrayType
-            || GetElements(declarator.Initializer?.Value) is not { } elements)
+            || GetArrayType(field.Declaration.Type) is not { } arrayType
+            || GetElementBraces(declarator.Initializer?.Value) is not { } braces)
         {
             return;
         }
@@ -30,18 +31,25 @@ public sealed class UseReadOnlySpanForConstantTableCodeFixProvider : CodeFixProv
         context.RegisterCodeFix(
             CodeAction.Create(
                 "Make it a ReadOnlySpan<T> property",
-                ct => ReplaceAsync(context.Document, field, declarator, arrayType, elements, ct),
+                ct => ReplaceAsync(context.Document, field, declarator, arrayType, braces, ct),
                 equivalenceKey: DiagnosticIds.UseReadOnlySpanForConstantTable),
             context.Diagnostics[0]);
     }
 
-    private static IEnumerable<ExpressionSyntax>? GetElements(ExpressionSyntax? value) => value switch
+    private static ArrayTypeSyntax? GetArrayType(TypeSyntax type) => type switch
     {
-        InitializerExpressionSyntax initializer => initializer.Expressions,
-        ArrayCreationExpressionSyntax { Initializer: { } initializer } => initializer.Expressions,
-        ImplicitArrayCreationExpressionSyntax creation => creation.Initializer.Expressions,
-        CollectionExpressionSyntax collection when collection.Elements.All(e => e is ExpressionElementSyntax) =>
-            collection.Elements.Cast<ExpressionElementSyntax>().Select(e => e.Expression),
+        ArrayTypeSyntax array => array,
+        NullableTypeSyntax { ElementType: ArrayTypeSyntax array } => array,
+        _ => null,
+    };
+
+    // The tokens around the elements, so the text between them keeps its comments and line breaks.
+    private static (SyntaxToken Open, SyntaxToken Close)? GetElementBraces(ExpressionSyntax? value) => value switch
+    {
+        InitializerExpressionSyntax initializer => (initializer.OpenBraceToken, initializer.CloseBraceToken),
+        ArrayCreationExpressionSyntax { Initializer: { } initializer } => (initializer.OpenBraceToken, initializer.CloseBraceToken),
+        ImplicitArrayCreationExpressionSyntax creation => (creation.Initializer.OpenBraceToken, creation.Initializer.CloseBraceToken),
+        CollectionExpressionSyntax collection => (collection.OpenBracketToken, collection.CloseBracketToken),
         _ => null,
     };
 
@@ -50,7 +58,7 @@ public sealed class UseReadOnlySpanForConstantTableCodeFixProvider : CodeFixProv
         FieldDeclarationSyntax field,
         VariableDeclaratorSyntax declarator,
         ArrayTypeSyntax arrayType,
-        IEnumerable<ExpressionSyntax> elements,
+        (SyntaxToken Open, SyntaxToken Close) braces,
         CancellationToken ct)
     {
         var root = await document.GetSyntaxRootAsync(ct);
@@ -60,9 +68,24 @@ public sealed class UseReadOnlySpanForConstantTableCodeFixProvider : CodeFixProv
         var modifiers = string.Join(" ", field.Modifiers
             .Where(m => !m.IsKind(SyntaxKind.ReadOnlyKeyword))
             .Select(m => m.Text));
-        var values = string.Join(", ", elements.Select(e => e.ToString()));
+        var elementType = arrayType.ElementType.ToString();
+        var inner = braces.Open.SyntaxTree!.GetText(ct)
+            .ToString(TextSpan.FromBounds(braces.Open.Span.End, braces.Close.SpanStart));
+
+        // A single-line table is tidied; a multi-line one keeps its layout and comments as written.
+        var singleLine = inner.IndexOf('\n') < 0;
+        if (singleLine)
+            inner = inner.Trim();
+
+        // Collection expressions need C# 12; before that the array creation still lowers to static data.
+        var supportsCollectionExpressions = document.Project.ParseOptions is CSharpParseOptions options
+            && options.LanguageVersion.MapSpecifiedToEffectiveVersion() >= LanguageVersion.CSharp12;
+        var value = supportsCollectionExpressions
+            ? $"[{inner}]"
+            : singleLine ? $"new {elementType}[] {{ {inner} }}" : $"new {elementType}[] {{{inner}}}";
+
         var property = SyntaxFactory.ParseMemberDeclaration(
-            $"{modifiers} ReadOnlySpan<{arrayType.ElementType}> {declarator.Identifier.Text} => [{values}];")!
+            $"{modifiers} ReadOnlySpan<{elementType}> {declarator.Identifier.Text} => {value};")!
             .WithTriviaFrom(field);
 
         return document.WithSyntaxRoot(UsingDirectives.EnsureSystem(root.ReplaceNode(field, property)));

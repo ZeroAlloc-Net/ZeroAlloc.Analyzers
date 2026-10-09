@@ -1,6 +1,8 @@
 using System.Collections.Concurrent;
 using System.Collections.Immutable;
 using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Diagnostics;
 using Microsoft.CodeAnalysis.Operations;
 
@@ -22,7 +24,7 @@ public sealed class UseReadOnlySpanForConstantTableAnalyzer : DiagnosticAnalyzer
 
     public override void Initialize(AnalysisContext context)
     {
-        context.ConfigureGeneratedCodeAnalysis(GeneratedCodeAnalysisFlags.None);
+        context.ConfigureGeneratedCodeAnalysis(GeneratedCodeAnalysisFlags.Analyze);
         context.EnableConcurrentExecution();
         context.RegisterCompilationStartAction(static start =>
         {
@@ -34,6 +36,13 @@ public sealed class UseReadOnlySpanForConstantTableAnalyzer : DiagnosticAnalyzer
             var hasCreateSpan = start.Compilation.GetTypeByMetadataName("System.Runtime.CompilerServices.RuntimeHelpers")
                 ?.GetMembers("CreateSpan").Length > 0;
 
+            // Friend assemblies can read internal fields, where this rule cannot see the use.
+            var hasFriendAssemblies = start.Compilation.Assembly.GetAttributes().Any(a =>
+                a.AttributeClass is { Name: "InternalsVisibleToAttribute" } attribute
+                && attribute.ContainingNamespace.ToDisplayString() == "System.Runtime.CompilerServices");
+
+            var expressionTreeBase = start.Compilation.GetTypeByMetadataName("System.Linq.Expressions.LambdaExpression");
+
             var candidates = new ConcurrentDictionary<IFieldSymbol, bool>(SymbolEqualityComparer.Default);
             var disqualified = new ConcurrentDictionary<IFieldSymbol, bool>(SymbolEqualityComparer.Default);
 
@@ -41,7 +50,8 @@ public sealed class UseReadOnlySpanForConstantTableAnalyzer : DiagnosticAnalyzer
             {
                 var initializer = (IFieldInitializerOperation)context.Operation;
                 if (initializer.InitializedFields.Length == 1
-                    && IsCandidateField(initializer.InitializedFields[0], hasCreateSpan)
+                    && IsCandidateField(initializer.InitializedFields[0], hasCreateSpan, hasFriendAssemblies)
+                    && !IsGenerated(initializer.Syntax.SyntaxTree)
                     && IsConstantArray(initializer.Value))
                 {
                     candidates[initializer.InitializedFields[0]] = true;
@@ -52,7 +62,9 @@ public sealed class UseReadOnlySpanForConstantTableAnalyzer : DiagnosticAnalyzer
             {
                 var reference = (IFieldReferenceOperation)context.Operation;
                 if (reference.Field.IsStatic && reference.Field.Type is IArrayTypeSymbol
-                    && !ReadOnlySpanUse.IsCompatible(reference, readOnlySpan))
+                    && (!ReadOnlySpanUse.IsCompatible(reference, readOnlySpan)
+                        || IsInAsyncOrIterator(reference, context.ContainingSymbol)
+                        || IsInExpressionTree(reference, expressionTreeBase)))
                 {
                     disqualified[reference.Field.OriginalDefinition] = true;
                 }
@@ -76,20 +88,20 @@ public sealed class UseReadOnlySpanForConstantTableAnalyzer : DiagnosticAnalyzer
         });
     }
 
-    private static bool IsCandidateField(IFieldSymbol field, bool hasCreateSpan)
+    private static bool IsCandidateField(IFieldSymbol field, bool hasCreateSpan, bool hasFriendAssemblies)
     {
         if (!field.IsStatic || !field.IsReadOnly || field.IsConst
             || field.DeclaredAccessibility is not (Accessibility.Private or Accessibility.Internal)
+            || field.DeclaredAccessibility == Accessibility.Internal && hasFriendAssemblies
             || field.Type is not IArrayTypeSymbol { Rank: 1 } array
             || field.DeclaringSyntaxReferences.Length != 1)
         {
             return false;
         }
 
-        if (field.DeclaringSyntaxReferences[0].GetSyntax() is
-            Microsoft.CodeAnalysis.CSharp.Syntax.VariableDeclaratorSyntax
+        if (field.DeclaringSyntaxReferences[0].GetSyntax() is VariableDeclaratorSyntax
             {
-                Parent: Microsoft.CodeAnalysis.CSharp.Syntax.VariableDeclarationSyntax { Variables.Count: > 1 }
+                Parent: VariableDeclarationSyntax { Variables.Count: > 1 }
             })
         {
             return false;
@@ -107,6 +119,72 @@ public sealed class UseReadOnlySpanForConstantTableAnalyzer : DiagnosticAnalyzer
                 or SpecialType.System_Single or SpecialType.System_Double => hasCreateSpan,
             _ => false,
         };
+    }
+
+    // foreach over a ReadOnlySpan<T> cannot cross an await or a yield.
+    private static bool IsInAsyncOrIterator(IOperation reference, ISymbol containingSymbol)
+    {
+        for (var current = reference.Parent; current is not null; current = current.Parent)
+        {
+            switch (current)
+            {
+                case IAnonymousFunctionOperation lambda:
+                    return lambda.Symbol.IsAsync;
+                case ILocalFunctionOperation local:
+                    return local.Symbol.IsAsync || ContainsYield(local.Syntax);
+            }
+        }
+
+        return containingSymbol is IMethodSymbol method
+            && (method.IsAsync || method.DeclaringSyntaxReferences.Any(r => ContainsYield(r.GetSyntax())));
+    }
+
+    private static bool ContainsYield(SyntaxNode function) =>
+        function.DescendantNodes(node => node == function || node is not (AnonymousFunctionExpressionSyntax or LocalFunctionStatementSyntax))
+            .OfType<YieldStatementSyntax>().Any();
+
+    // An expression tree cannot call a property that returns a ReadOnlySpan<T>.
+    private static bool IsInExpressionTree(IOperation reference, INamedTypeSymbol? lambdaExpression)
+    {
+        if (lambdaExpression is null)
+            return false;
+
+        for (var current = reference.Parent; current is not null; current = current.Parent)
+        {
+            if (current is IAnonymousFunctionOperation { Parent: IConversionOperation { Type: { } type } })
+            {
+                for (var baseType = type; baseType is not null; baseType = baseType.BaseType)
+                {
+                    if (SymbolEqualityComparer.Default.Equals(baseType, lambdaExpression))
+                        return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    private static bool IsGenerated(SyntaxTree tree)
+    {
+        var path = tree.FilePath;
+        if (path.EndsWith(".g.cs", StringComparison.OrdinalIgnoreCase)
+            || path.EndsWith(".generated.cs", StringComparison.OrdinalIgnoreCase)
+            || path.EndsWith(".designer.cs", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        foreach (var trivia in tree.GetRoot().GetLeadingTrivia())
+        {
+            if (trivia.IsKind(SyntaxKind.SingleLineCommentTrivia) || trivia.IsKind(SyntaxKind.MultiLineCommentTrivia))
+            {
+                var text = trivia.ToString();
+                if (text.Contains("<auto-generated") || text.Contains("<autogenerated"))
+                    return true;
+            }
+        }
+
+        return false;
     }
 
     private static bool IsConstantArray(IOperation value)
