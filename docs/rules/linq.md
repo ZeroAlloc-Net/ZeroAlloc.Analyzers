@@ -145,6 +145,12 @@ public sealed class OrderFulfillmentService
 
 A `params T[]` parameter causes the compiler to emit a `new T[] { ... }` array allocation at every call site. Inside a loop with N iterations that means N array objects, each of which the GC must track and eventually collect. This is especially common with structured logging APIs (e.g., `ILogger.LogDebug(string, params object[] args)`) where every message argument is boxed into an `object[]`. Use source-generated `[LoggerMessage]` delegates for logging, explicit non-params overloads where available, or restructure to call the method once outside the loop.
 
+The rule only fires when the call really allocates:
+
+- **`params` arrays**: reported when the call passes individual arguments. Passing an existing array, or no arguments at all, allocates nothing new and is not reported.
+- **`params Span<T>` / `params ReadOnlySpan<T>`** (C# 13): not reported on .NET 8 and later, where the compiler backs the span with a stack-allocated inline array. On older runtimes the compiler falls back to `new T[]`, so the call is reported. The exception is an all-constant `ReadOnlySpan<T>` of primitives, which is read from static data: always for `byte`, `sbyte` and `bool`, and from .NET 7 for wider primitives.
+- **Other `params` collections** such as `List<T>` or `IEnumerable<T>`: reported, since the compiler builds a heap collection on every call.
+
 ### Before
 
 ```csharp
