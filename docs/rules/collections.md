@@ -607,3 +607,36 @@ public void Process(Order order, string[] notes = null)
 #pragma warning disable ZA0109
 // or in .editorconfig: dotnet_diagnostic.ZA0109.severity = none
 ```
+
+---
+
+## ZA0111 — Enumerate the ConcurrentDictionary instead of its Keys or Values {#za0111}
+
+> **Severity**: Info | **Min TFM**: Any | **Code fix**: Yes
+
+### Why
+
+Every read of `ConcurrentDictionary<TKey, TValue>.Keys` or `.Values` takes every lock in the dictionary and copies the contents into a new `ReadOnlyCollection`. Enumerating the dictionary itself takes no locks and copies nothing. The rule reports `Keys` or `Values` used directly by `foreach` or a LINQ call. A snapshot stored in a variable is left alone, because a consistent copy may be what you want. The code fix deconstructs the pair, so the loop body stays the same.
+
+### Before
+
+```csharp
+// ❌ locks the whole dictionary and copies every key
+foreach (var sessionId in _sessions.Keys)
+    Expire(sessionId);
+```
+
+### After
+
+```csharp
+// ✓ lock-free enumeration, no copy
+foreach (var (sessionId, _) in _sessions)
+    Expire(sessionId);
+```
+
+### Suppression
+
+```csharp
+#pragma warning disable ZA0111
+// or in .editorconfig: dotnet_diagnostic.ZA0111.severity = none
+```
