@@ -16,7 +16,7 @@ public sealed class AvoidDynamicAnalyzer : DiagnosticAnalyzer
     private static readonly DiagnosticDescriptor Rule = new(
         DiagnosticIds.AvoidDynamic,
         "Avoid dynamic dispatch",
-        "'dynamic' dispatch uses the runtime binder, which is not supported under NativeAOT",
+        "'dynamic' dispatch uses the runtime binder, which is not supported under Native AOT",
         DiagnosticCategories.Aot,
         DiagnosticSeverity.Info,
         isEnabledByDefault: true);
@@ -43,7 +43,8 @@ public sealed class AvoidDynamicAnalyzer : DiagnosticAnalyzer
                 OperationKind.CompoundAssignment,
                 OperationKind.Increment,
                 OperationKind.Decrement,
-                OperationKind.Conversion);
+                OperationKind.Conversion,
+                OperationKind.Await);
         });
     }
 
@@ -71,9 +72,12 @@ public sealed class AvoidDynamicAnalyzer : DiagnosticAnalyzer
         IUnaryOperation unary => IsDynamic(unary.Operand.Type),
         ICompoundAssignmentOperation compound => IsDynamic(compound.Target.Type) || IsDynamic(compound.Value.Type),
         IIncrementOrDecrementOperation increment => IsDynamic(increment.Target.Type),
+        // Awaiting a dynamic value binds GetAwaiter, IsCompleted and GetResult at run time.
+        IAwaitOperation awaitOperation => IsDynamic(awaitOperation.Operation.Type),
         // Converting a dynamic value to a static type binds the conversion at run time;
-        // converting to object or dynamic does not.
+        // converting to object or dynamic does not, and neither does an 'as' type test.
         IConversionOperation conversion => IsDynamic(conversion.Operand.Type)
+            && !conversion.IsTryCast
             && !IsDynamic(conversion.Type)
             && conversion.Type?.SpecialType != SpecialType.System_Object,
         _ => false,
