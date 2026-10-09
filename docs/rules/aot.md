@@ -18,7 +18,7 @@ The value ZA17xx adds is for the **common case where you have not opted in yet**
 
 Several existing ZeroAlloc rules already steer toward AOT-friendly code: [ZA1001](serialization.md#za1001) (JSON source generation), [ZA0701](regex.md#za0701) (GeneratedRegex), and [ZA0401](logging.md#za0401) (LoggerMessage).
 
-ZA1706 to ZA1709 cover the next layer: a library that has not switched the SDK analyzers on at all (ZA1706), and the reflection-based helpers in `Microsoft.Extensions` that have a source-generated replacement (ZA1707 and ZA1708), plus `dynamic` (ZA1709).
+ZA1706 to ZA1709 cover the next layer: a library that has not switched the SDK analyzers on at all (ZA1706), and the reflection-based helpers in `Microsoft.Extensions` that have a source-generated replacement (ZA1707 and ZA1708), plus `dynamic` (ZA1709). ZA1710 reports registration that scans assemblies with reflection.
 
 ---
 
@@ -268,4 +268,46 @@ string name = response.User.Name;
 ```csharp
 #pragma warning disable ZA1709
 // or in .editorconfig: dotnet_diagnostic.ZA1709.severity = none
+```
+
+---
+
+## ZA1710 — Avoid assembly-scanning registration {#za1710}
+
+> **Severity**: Info | **Min TFM**: Any | **Code fix**: No
+
+### Why
+
+Scrutor's `Scan`, MediatR's `RegisterServicesFromAssembly*`, FluentValidation's `AddValidatorsFromAssembly*` and AutoMapper's `AddAutoMapper` with an assembly or type argument all find the types to register by walking an assembly with reflection at start-up. Trimming removes the types nobody references by name, so the scan finds fewer than it did in debug, and Native AOT cannot enumerate and instantiate them at all. The scan also costs start-up time on every launch.
+
+The rule recognises Scrutor, MediatR, FluentValidation and AutoMapper, and matches on the assembly that declares the called method and on the method's name, so it keeps working across their major versions. The message names the ZeroAlloc package that registers the same types with a source generator: Inject for Scrutor, Mediator for MediatR, Validation for FluentValidation and Mapping for AutoMapper. Overloads that take only a configuration delegate, such as `AddAutoMapper(cfg => { })`, scan nothing and are not reported. MediatR 12's `AddMediatR(cfg => ...)` is not reported itself, but each `RegisterServicesFrom*` call inside it is.
+
+Unlike the other ZA17xx rules, this one stays on when the SDK's AOT analyzer is enabled, because these libraries are not trim-annotated and the SDK says nothing about their scanning calls. It stands down for a call only when the SDK analyzer is on and the called method, or its containing type, carries `RequiresUnreferencedCode` or `RequiresDynamicCode`, since the SDK reports that call already.
+
+### Before
+
+```csharp
+// Program.cs: every registration discovers its types by scanning an assembly
+builder.Services.AddMediatR(cfg =>
+    cfg.RegisterServicesFromAssembly(typeof(Program).Assembly));              // ❌ ZA1710
+builder.Services.AddValidatorsFromAssemblyContaining<OrderValidator>();       // ❌ ZA1710
+builder.Services.AddAutoMapper(typeof(Program).Assembly);                     // ❌ ZA1710
+```
+
+### After
+
+```csharp
+// ✓ each package generates its registrations at compile time
+builder.Services.AddMediator();            // ZeroAlloc.Mediator: handlers found by the source generator
+builder.Services.AddZeroAllocValidators(); // ZeroAlloc.Validation.Inject: validators found by the source generator
+// ZeroAlloc.Mapping: mappers are declared with [Map<TSrc, TDst>] and generated, so no registration scan is needed
+```
+
+For Scrutor, mark each service with `[Transient]`, `[Scoped]` or `[Singleton]` from ZeroAlloc.Inject and call the generated `Add<Assembly>Services()` method.
+
+### Suppression
+
+```csharp
+#pragma warning disable ZA1710
+// or in .editorconfig: dotnet_diagnostic.ZA1710.severity = none
 ```
