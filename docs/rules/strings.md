@@ -844,3 +844,43 @@ writer.Write("\r\n"u8);
 #pragma warning disable ZA0210
 // or in .editorconfig: dotnet_diagnostic.ZA0210.severity = none
 ```
+
+---
+
+## ZA0212 — Use TryParse instead of catching the exception from Parse {#za0212}
+
+> **Severity**: Info | **Min TFM**: Any | **Code fix**: No
+
+### Why
+
+When `Parse` fails it allocates an exception and captures a stack trace, which costs far more than the parse itself. Code that catches that exception to fall back to a default pays this on every bad input. `TryParse` reports failure through its return value and allocates nothing. The rule reports a `Parse` call inside a `try` whose matching `catch` swallows the exception, for any type with a `TryParse` that takes the same parameters plus an `out` result. That covers the numeric types, `Guid`, `DateTime`, `Enum.Parse<T>` and your own `IParsable<T>` types.
+
+### Before
+
+```csharp
+// ❌ every malformed value allocates and throws an exception
+int port;
+try
+{
+    port = int.Parse(value);
+}
+catch (FormatException)
+{
+    port = DefaultPort;
+}
+```
+
+### After
+
+```csharp
+// ✓ no exception on bad input
+if (!int.TryParse(value, out var port))
+    port = DefaultPort;
+```
+
+### Suppression
+
+```csharp
+#pragma warning disable ZA0212
+// or in .editorconfig: dotnet_diagnostic.ZA0212.severity = none
+```
