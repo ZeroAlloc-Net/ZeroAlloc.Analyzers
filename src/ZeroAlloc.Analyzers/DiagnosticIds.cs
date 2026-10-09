@@ -24,6 +24,7 @@ public static class DiagnosticIds
     public const string AvoidStringJoinBoxingOverload = "ZA0208";
     public const string AvoidValueTypeBoxingInStringConcat = "ZA0209";
     public const string UseUtf8StringLiteral = "ZA0210";
+    public const string UseSpanSplit = "ZA0211";
     public const string UseTryParse = "ZA0212";
 
     // ZA03xx — Memory

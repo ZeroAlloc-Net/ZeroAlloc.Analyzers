@@ -177,6 +177,7 @@ The tables below list all 50 rules grouped by category. Rule IDs link to the cor
 | [ZA0208](rules/strings.md#za0208) | Avoid string.Join boxing overload | Warning | Any |
 | [ZA0209](rules/strings.md#za0209) | Avoid value type boxing in string concatenation | Warning | Any |
 | [ZA0210](rules/strings.md#za0210) | Use a UTF-8 string literal | Warning | Any (C# 11) |
+| [ZA0211](rules/strings.md#za0211) | Use the span-based Split | Info | net9.0 |
 | [ZA0212](rules/strings.md#za0212) | Use TryParse instead of catching the exception from Parse | Info | Any |
 
 ### Memory (ZA03xx)
