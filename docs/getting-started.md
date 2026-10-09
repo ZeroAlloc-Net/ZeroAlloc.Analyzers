@@ -10,7 +10,7 @@ sidebar_position: 1
 
 ## What is ZeroAlloc.Analyzers?
 
-ZeroAlloc.Analyzers is a Roslyn analyzer NuGet package that detects allocation-heavy patterns in C# code and suggests zero or low-allocation alternatives. It covers 63 rules across 15 categories — from collection misuse and string concatenation to boxing, LINQ, async, value type pitfalls, cache-line data layout, and Native AOT compatibility. The package is multi-TFM aware: rules are automatically enabled or disabled based on the consuming project's `<TargetFramework>`, so you only see diagnostics that are actionable for your target runtime.
+ZeroAlloc.Analyzers is a Roslyn analyzer NuGet package that detects allocation-heavy patterns in C# code and suggests zero or low-allocation alternatives. It covers 64 rules across 15 categories — from collection misuse and string concatenation to boxing, LINQ, async, value type pitfalls, cache-line data layout, and Native AOT compatibility. The package is multi-TFM aware: rules are automatically enabled or disabled based on the consuming project's `<TargetFramework>`, so you only see diagnostics that are actionable for your target runtime.
 
 ---
 
@@ -121,7 +121,7 @@ See [configuration.md](configuration.md) for the full suppression and severity-t
 
 ## Rule Categories
 
-ZeroAlloc.Analyzers organizes its 63 rules into 15 categories:
+ZeroAlloc.Analyzers organizes its 64 rules into 15 categories:
 
 ```mermaid
 graph TD
@@ -140,14 +140,14 @@ graph TD
     ZeroAlloc --> D["Delegates<br/>ZA14xx (2 rules)"]
     ZeroAlloc --> V["Value Types<br/>ZA15xx (3 rules)"]
     ZeroAlloc --> DL["Data Layout<br/>ZA16xx (1 rule)"]
-    ZeroAlloc --> AOT["Native AOT<br/>ZA17xx (8 rules)"]
+    ZeroAlloc --> AOT["Native AOT<br/>ZA17xx (9 rules)"]
 ```
 
 ---
 
 ## All Rules
 
-The tables below list all 63 rules grouped by category. Rule IDs link to the corresponding section in each category's reference document. The **Min TFM** column shows the minimum target framework required for the rule to fire; `Any` means the rule applies to all supported frameworks.
+The tables below list all 64 rules grouped by category. Rule IDs link to the corresponding section in each category's reference document. The **Min TFM** column shows the minimum target framework required for the rule to fire; `Any` means the rule applies to all supported frameworks.
 
 ### Collections (ZA01xx)
 
@@ -285,8 +285,9 @@ The tables below list all 63 rules grouped by category. Rule IDs link to the cor
 | [ZA1707](rules/aot.md#za1707) | Use the configuration-binding source generator | Info | Any (Binder 8.0+, C# 12) |
 | [ZA1708](rules/aot.md#za1708) | Use a source-generated options validator | Info | Any (Options 8.0+, C# 8) |
 | [ZA1709](rules/aot.md#za1709) | Avoid dynamic dispatch | Info | Any |
+| [ZA1710](rules/aot.md#za1710) | Avoid assembly-scanning registration | Info | Any |
 
-> `ZA1705` (avoid resolving types or assemblies by name) is disabled by default — see [Native AOT rules](rules/aot.md#za1705) to opt in. All ZA17xx rules stand down automatically when the SDK's own AOT analyzer is enabled.
+> `ZA1705` (avoid resolving types or assemblies by name) is disabled by default — see [Native AOT rules](rules/aot.md#za1705) to opt in. All ZA17xx rules stand down automatically when the SDK's own AOT analyzer is enabled, except ZA1710, which stands down per call and only for scanning APIs that are trim- or AOT-annotated.
 
 ---
 

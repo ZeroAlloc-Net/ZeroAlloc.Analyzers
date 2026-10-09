@@ -95,4 +95,5 @@ public static class DiagnosticIds
     public const string UseConfigurationBindingGenerator = "ZA1707";
     public const string UseOptionsValidatorGenerator = "ZA1708";
     public const string AvoidDynamic = "ZA1709";
+    public const string AvoidAssemblyScanningRegistration = "ZA1710";
 }

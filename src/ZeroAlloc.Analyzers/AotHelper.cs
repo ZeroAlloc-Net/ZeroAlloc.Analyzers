@@ -14,6 +14,17 @@ internal static class AotHelper
             || IsBuildPropertyTrue(options, "IsAotCompatible")
             || IsBuildPropertyTrue(options, "EnableAotAnalyzer");
 
+    /// <summary>
+    /// True when the SDK's trim analyzer, which reports IL2026, is on. <c>EnableAotAnalyzer</c>
+    /// alone turns on only the AOT analyzer (IL3050), so it is not counted here.
+    /// </summary>
+    public static bool IsSdkTrimAnalyzerEnabled(AnalyzerOptions options)
+        => IsBuildPropertyTrue(options, "PublishAot")
+            || IsBuildPropertyTrue(options, "IsAotCompatible")
+            || IsBuildPropertyTrue(options, "EnableTrimAnalyzer")
+            || IsBuildPropertyTrue(options, "PublishTrimmed")
+            || IsBuildPropertyTrue(options, "IsTrimmable");
+
     /// <summary>True when the MSBuild property is visible to the analyzer and set to <c>true</c>.</summary>
     public static bool IsBuildPropertyTrue(AnalyzerOptions options, string name)
         => options.AnalyzerConfigOptionsProvider.GlobalOptions.TryGetValue($"build_property.{name}", out var value)

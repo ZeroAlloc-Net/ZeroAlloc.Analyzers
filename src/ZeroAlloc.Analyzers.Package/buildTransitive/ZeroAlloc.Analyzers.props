@@ -5,6 +5,10 @@
     <CompilerVisibleProperty Include="PublishAot" />
     <CompilerVisibleProperty Include="IsAotCompatible" />
     <CompilerVisibleProperty Include="EnableAotAnalyzer" />
+    <!-- Lets ZA1710 tell whether the SDK's trim analyzer, which reports IL2026, is on. -->
+    <CompilerVisibleProperty Include="EnableTrimAnalyzer" />
+    <CompilerVisibleProperty Include="PublishTrimmed" />
+    <CompilerVisibleProperty Include="IsTrimmable" />
     <!-- Lets ZA1706 skip test projects, which are never published with AOT. -->
     <CompilerVisibleProperty Include="IsTestProject" />
     <!-- Lets ZA1707 stand down once the configuration-binding source generator is on. -->
