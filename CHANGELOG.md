@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.9.0](https://github.com/ZeroAlloc-Net/ZeroAlloc.Analyzers/compare/v1.8.0...v1.9.0) (2026-10-09)
+
+
+### Features
+
+* add ZA1710 to report assembly-scanning registration ([f77217b](https://github.com/ZeroAlloc-Net/ZeroAlloc.Analyzers/commit/f77217b626ba531b165ff8823c329ae1b8516fa0))
+
 ## [1.8.0](https://github.com/ZeroAlloc-Net/ZeroAlloc.Analyzers/compare/v1.7.0...v1.8.0) (2026-10-09)
 
 
