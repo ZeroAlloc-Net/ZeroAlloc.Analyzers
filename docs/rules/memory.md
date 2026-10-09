@@ -465,3 +465,36 @@ public uint Checksum(Stream stream)
 #pragma warning disable ZA0303
 // or in .editorconfig: dotnet_diagnostic.ZA0303.severity = none
 ```
+
+---
+
+## ZA0304 — Use a ReadOnlySpan\<T\> property for constant lookup tables {#za0304}
+
+> **Severity**: Info | **Min TFM**: Any (wider primitives: net7.0) | **Code fix**: Yes
+
+### Why
+
+`static readonly int[] Table = { … }` allocates an array when the type is initialized and copies the constants into it. A `static ReadOnlySpan<int> Table => [ … ];` property reads them straight from the assembly's data section: no allocation, and NativeAOT can pre-initialize it. Call sites that index the table, read `Length` or `foreach` over it compile unchanged.
+
+The rule reports `private` and `internal` tables of primitives whose every use is a read. `byte`, `sbyte` and `bool` tables qualify on every runtime; other primitives need `RuntimeHelpers.CreateSpan`, which arrived in .NET 7. Because it has to see every use of the field, the rule reports when the whole project is analyzed, on build or with full-solution analysis, not while you type.
+
+### Before
+
+```csharp
+// ❌ allocated and filled at type initialization
+private static readonly byte[] HexDigits = { 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 65, 66, 67, 68, 69, 70 };
+```
+
+### After
+
+```csharp
+// ✓ read from the assembly's static data, no allocation
+private static ReadOnlySpan<byte> HexDigits => [48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 65, 66, 67, 68, 69, 70];
+```
+
+### Suppression
+
+```csharp
+#pragma warning disable ZA0304
+// or in .editorconfig: dotnet_diagnostic.ZA0304.severity = none
+```

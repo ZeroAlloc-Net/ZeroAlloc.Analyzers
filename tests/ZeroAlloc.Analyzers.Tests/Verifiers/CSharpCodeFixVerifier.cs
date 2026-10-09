@@ -40,7 +40,8 @@ public static class CSharpCodeFixVerifier<TAnalyzer, TCodeFix>
         string source,
         string fixedSource,
         DiagnosticResult expected,
-        string targetFramework = "net8.0")
+        string targetFramework = "net8.0",
+        bool compilationEndDiagnostic = false)
     {
         var test = new CSharpCodeFixTest<TAnalyzer, TCodeFix, DefaultVerifier>
         {
@@ -48,6 +49,11 @@ public static class CSharpCodeFixVerifier<TAnalyzer, TCodeFix>
             FixedCode = fixedSource,
             ReferenceAssemblies = ReferenceAssemblies.Net.Net80,
         };
+
+        // A compilation-end diagnostic is never produced by the per-document analysis the harness uses to
+        // check that a fix targets a local diagnostic.
+        if (compilationEndDiagnostic)
+            test.CodeFixTestBehaviors |= CodeFixTestBehaviors.SkipLocalDiagnosticCheck;
 
         test.TestState.AnalyzerConfigFiles.Add(
             ("/.globalconfig", $"""
