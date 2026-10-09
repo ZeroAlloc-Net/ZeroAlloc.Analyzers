@@ -12,6 +12,8 @@ public static class DiagnosticIds
     public const string PreSizeCollections = "ZA0107";
     public const string AvoidRedundantMaterialization = "ZA0108";
     public const string AvoidZeroLengthArrayAllocation = "ZA0109";
+    public const string PreferParamsSpan = "ZA0110";
+    public const string AvoidConcurrentDictionarySnapshot = "ZA0111";
 
     // ZA02xx — Strings
     public const string AvoidStringConcatInLoop = "ZA0201";
@@ -22,10 +24,15 @@ public static class DiagnosticIds
     public const string AvoidSpanToStringBeforeParse = "ZA0206";
     public const string AvoidStringJoinBoxingOverload = "ZA0208";
     public const string AvoidValueTypeBoxingInStringConcat = "ZA0209";
+    public const string UseUtf8StringLiteral = "ZA0210";
+    public const string UseSpanSplit = "ZA0211";
+    public const string UseTryParse = "ZA0212";
 
     // ZA03xx — Memory
     public const string UseStackalloc = "ZA0301";
     public const string UseArrayPool = "ZA0302";
+    public const string ReturnRentedArray = "ZA0303";
+    public const string UseReadOnlySpanForConstantTable = "ZA0304";
 
     // ZA04xx — Logging
     public const string UseLoggerMessage = "ZA0401";

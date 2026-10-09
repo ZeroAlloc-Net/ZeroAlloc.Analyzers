@@ -1,0 +1,241 @@
+using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.CSharp.Testing;
+using Microsoft.CodeAnalysis.Testing;
+using ZeroAlloc.Analyzers.CodeFixes;
+using ZeroAlloc.Analyzers.Tests.Verifiers;
+
+namespace ZeroAlloc.Analyzers.Tests;
+
+public class ZA0210_UseUtf8StringLiteralTests
+{
+    private static DiagnosticResult Expected(string literal) =>
+        CSharpAnalyzerVerifier<UseUtf8StringLiteralAnalyzer>
+            .Diagnostic(DiagnosticIds.UseUtf8StringLiteral)
+            .WithLocation(0)
+            .WithArguments(literal);
+
+    [Fact]
+    public async Task ConstantPassedAsSpan_ReportsAndFixes()
+    {
+        var source = """
+            using System;
+            using System.Text;
+
+            class C
+            {
+                static void Write(ReadOnlySpan<byte> bytes) { }
+
+                void M() => Write({|#0:Encoding.UTF8.GetBytes("hello")|});
+            }
+            """;
+
+        var fixedSource = """
+            using System;
+            using System.Text;
+
+            class C
+            {
+                static void Write(ReadOnlySpan<byte> bytes) { }
+
+                void M() => Write("hello"u8);
+            }
+            """;
+
+        await CSharpCodeFixVerifier<UseUtf8StringLiteralAnalyzer, UseUtf8StringLiteralCodeFixProvider>
+            .VerifyCodeFixAsync(source, fixedSource, Expected("\"hello\""));
+    }
+
+    [Fact]
+    public async Task ConstantAssignedToSpanLocal_ReportsAndFixes()
+    {
+        var source = """
+            using System;
+            using System.Text;
+
+            class C
+            {
+                int M()
+                {
+                    ReadOnlySpan<byte> header = {|#0:Encoding.UTF8.GetBytes("GET ")|};
+                    return header.Length;
+                }
+            }
+            """;
+
+        var fixedSource = """
+            using System;
+            using System.Text;
+
+            class C
+            {
+                int M()
+                {
+                    ReadOnlySpan<byte> header = "GET "u8;
+                    return header.Length;
+                }
+            }
+            """;
+
+        await CSharpCodeFixVerifier<UseUtf8StringLiteralAnalyzer, UseUtf8StringLiteralCodeFixProvider>
+            .VerifyCodeFixAsync(source, fixedSource, Expected("\"GET \""));
+    }
+
+    [Fact]
+    public async Task EscapedText_FixKeepsTheEscapes()
+    {
+        var source = """
+            using System;
+            using System.Text;
+
+            class C
+            {
+                static void Write(ReadOnlySpan<byte> bytes) { }
+
+                void M() => Write({|#0:Encoding.UTF8.GetBytes("\r\n")|});
+            }
+            """;
+
+        var fixedSource = """
+            using System;
+            using System.Text;
+
+            class C
+            {
+                static void Write(ReadOnlySpan<byte> bytes) { }
+
+                void M() => Write("\r\n"u8);
+            }
+            """;
+
+        await CSharpCodeFixVerifier<UseUtf8StringLiteralAnalyzer, UseUtf8StringLiteralCodeFixProvider>
+            .VerifyCodeFixAsync(source, fixedSource, Expected("\"\\r\\n\""));
+    }
+
+    [Fact]
+    public async Task TwoDiagnosticsInOneDocument_FixAllFixesBoth()
+    {
+        var source = """
+            using System;
+            using System.Text;
+
+            class C
+            {
+                static void Write(ReadOnlySpan<byte> bytes) { }
+
+                void M()
+                {
+                    Write({|#0:Encoding.UTF8.GetBytes("GET ")|});
+                    Write({|#1:Encoding.UTF8.GetBytes("HTTP/1.1")|});
+                }
+            }
+            """;
+
+        var fixedSource = """
+            using System;
+            using System.Text;
+
+            class C
+            {
+                static void Write(ReadOnlySpan<byte> bytes) { }
+
+                void M()
+                {
+                    Write("GET "u8);
+                    Write("HTTP/1.1"u8);
+                }
+            }
+            """;
+
+        var test = new CSharpCodeFixTest<UseUtf8StringLiteralAnalyzer, UseUtf8StringLiteralCodeFixProvider, DefaultVerifier>
+        {
+            TestCode = source,
+            FixedCode = fixedSource,
+            ReferenceAssemblies = ReferenceAssemblies.Net.Net80,
+
+            // One Fix All pass over the document fixes both.
+            NumberOfFixAllInDocumentIterations = 1,
+        };
+        test.ExpectedDiagnostics.Add(Expected("\"GET \""));
+        test.ExpectedDiagnostics.Add(
+            CSharpAnalyzerVerifier<UseUtf8StringLiteralAnalyzer>
+                .Diagnostic(DiagnosticIds.UseUtf8StringLiteral)
+                .WithLocation(1)
+                .WithArguments("\"HTTP/1.1\""));
+
+        await test.RunAsync();
+    }
+
+    [Fact]
+    public async Task CSharp12_Reports()
+    {
+        var source = """
+            using System;
+            using System.Text;
+
+            class C
+            {
+                static void Write(ReadOnlySpan<byte> bytes) { }
+
+                void M() => Write({|#0:Encoding.UTF8.GetBytes("hello")|});
+            }
+            """;
+
+        await CSharpAnalyzerVerifier<UseUtf8StringLiteralAnalyzer>
+            .VerifyAnalyzerAsync(source, LanguageVersion.CSharp12, Expected("\"hello\""));
+    }
+
+    [Fact]
+    public async Task CSharp10_NoDiagnostic()
+    {
+        // u8 literals arrived in C# 11.
+        var source = """
+            using System;
+            using System.Text;
+
+            class C
+            {
+                static void Write(ReadOnlySpan<byte> bytes) { }
+
+                void M() => Write(Encoding.UTF8.GetBytes("hello"));
+            }
+            """;
+
+        await CSharpAnalyzerVerifier<UseUtf8StringLiteralAnalyzer>
+            .VerifyAnalyzerAsync(source, LanguageVersion.CSharp10);
+    }
+
+    [Theory]
+    [InlineData("byte[] bytes = Encoding.UTF8.GetBytes(\"hello\"); Use(bytes);")]
+    [InlineData("Write(Encoding.UTF8.GetBytes(name));")]
+    [InlineData("Write(Encoding.ASCII.GetBytes(\"hello\"));")]
+    [InlineData("Write(Encoding.UTF8.GetBytes(\"\\uD800\"));")]
+    [InlineData("var utf8 = Encoding.UTF8; Write(utf8.GetBytes(\"hello\"));")]
+    [InlineData("Write(_encoding.GetBytes(\"hello\"));")]
+    [InlineData("var bytes = (ReadOnlySpan<byte>)Encoding.UTF8.GetBytes(\"hello\"); Write(bytes);")]
+    public async Task NotADropInReplacement_NoDiagnostic(string statement)
+    {
+        // A byte[] result, a non-constant, another encoding, text with a lone surrogate, an encoding
+        // held in a local or field, or an explicit cast.
+        var source = $$"""
+            using System;
+            using System.Text;
+
+            class C
+            {
+                static void Write(ReadOnlySpan<byte> bytes) { }
+
+                static void Use(byte[] bytes) { }
+
+                private static readonly Encoding _encoding = Encoding.UTF8;
+
+                void M(string name)
+                {
+                    {{statement}}
+                }
+            }
+            """;
+
+        await CSharpAnalyzerVerifier<UseUtf8StringLiteralAnalyzer>
+            .VerifyNoDiagnosticAsync(source, "net8.0");
+    }
+}

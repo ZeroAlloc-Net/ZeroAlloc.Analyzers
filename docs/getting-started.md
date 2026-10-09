@@ -10,7 +10,7 @@ sidebar_position: 1
 
 ## What is ZeroAlloc.Analyzers?
 
-ZeroAlloc.Analyzers is a Roslyn analyzer NuGet package that detects allocation-heavy patterns in C# code and suggests zero or low-allocation alternatives. It covers 50 rules across 15 categories — from collection misuse and string concatenation to boxing, LINQ, async, value type pitfalls, cache-line data layout, and Native AOT compatibility. The package is multi-TFM aware: rules are automatically enabled or disabled based on the consuming project's `<TargetFramework>`, so you only see diagnostics that are actionable for your target runtime.
+ZeroAlloc.Analyzers is a Roslyn analyzer NuGet package that detects allocation-heavy patterns in C# code and suggests zero or low-allocation alternatives. It covers 57 rules across 15 categories — from collection misuse and string concatenation to boxing, LINQ, async, value type pitfalls, cache-line data layout, and Native AOT compatibility. The package is multi-TFM aware: rules are automatically enabled or disabled based on the consuming project's `<TargetFramework>`, so you only see diagnostics that are actionable for your target runtime.
 
 ---
 
@@ -121,14 +121,14 @@ See [configuration.md](configuration.md) for the full suppression and severity-t
 
 ## Rule Categories
 
-ZeroAlloc.Analyzers organizes its 50 rules into 15 categories:
+ZeroAlloc.Analyzers organizes its 57 rules into 15 categories:
 
 ```mermaid
 graph TD
     ZeroAlloc["ZeroAlloc.Analyzers"]
-    ZeroAlloc --> C["Collections<br/>ZA01xx (9 rules)"]
-    ZeroAlloc --> S["Strings<br/>ZA02xx (8 rules)"]
-    ZeroAlloc --> M["Memory<br/>ZA03xx (2 rules)"]
+    ZeroAlloc --> C["Collections<br/>ZA01xx (11 rules)"]
+    ZeroAlloc --> S["Strings<br/>ZA02xx (11 rules)"]
+    ZeroAlloc --> M["Memory<br/>ZA03xx (4 rules)"]
     ZeroAlloc --> L["Logging<br/>ZA04xx (1 rule)"]
     ZeroAlloc --> B["Boxing<br/>ZA05xx (3 rules)"]
     ZeroAlloc --> LQ["LINQ<br/>ZA06xx (7 rules)"]
@@ -147,7 +147,7 @@ graph TD
 
 ## All Rules
 
-The tables below list all 50 rules grouped by category. Rule IDs link to the corresponding section in each category's reference document. The **Min TFM** column shows the minimum target framework required for the rule to fire; `Any` means the rule applies to all supported frameworks.
+The tables below list all 57 rules grouped by category. Rule IDs link to the corresponding section in each category's reference document. The **Min TFM** column shows the minimum target framework required for the rule to fire; `Any` means the rule applies to all supported frameworks.
 
 ### Collections (ZA01xx)
 
@@ -162,6 +162,8 @@ The tables below list all 50 rules grouped by category. Rule IDs link to the cor
 | [ZA0107](rules/collections.md#za0107) | Pre-size collections when capacity is known | Info | Any |
 | [ZA0108](rules/collections.md#za0108) | Avoid redundant ToList/ToArray materialization | Warning | Any |
 | [ZA0109](rules/collections.md#za0109) | Avoid zero-length array allocation | Warning | Any |
+| [ZA0110](rules/collections.md#za0110) | Declare params as ReadOnlySpan\<T\> | Info | net8.0 (C# 13) |
+| [ZA0111](rules/collections.md#za0111) | Enumerate the ConcurrentDictionary instead of its Keys or Values | Info | Any |
 
 ### Strings (ZA02xx)
 
@@ -175,6 +177,9 @@ The tables below list all 50 rules grouped by category. Rule IDs link to the cor
 | [ZA0206](rules/strings.md#za0206) | Avoid span.ToString() before Parse | Info | net6.0 |
 | [ZA0208](rules/strings.md#za0208) | Avoid string.Join boxing overload | Warning | Any |
 | [ZA0209](rules/strings.md#za0209) | Avoid value type boxing in string concatenation | Warning | Any |
+| [ZA0210](rules/strings.md#za0210) | Use a UTF-8 string literal | Warning | Any (C# 11) |
+| [ZA0211](rules/strings.md#za0211) | Use the span-based Split | Info | net9.0 |
+| [ZA0212](rules/strings.md#za0212) | Use TryParse instead of catching the exception from Parse | Info | Any |
 
 ### Memory (ZA03xx)
 
@@ -182,6 +187,8 @@ The tables below list all 50 rules grouped by category. Rule IDs link to the cor
 |---------|-------|----------|---------|
 | [ZA0301](rules/memory.md#za0301) | Use stackalloc for small fixed-size buffers | Info | Any |
 | [ZA0302](rules/memory.md#za0302) | Use ArrayPool for large temporary arrays | Info | Any |
+| [ZA0303](rules/memory.md#za0303) | Return rented arrays to the pool | Warning | Any |
+| [ZA0304](rules/memory.md#za0304) | Use a ReadOnlySpan\<T\> property for constant lookup tables | Info | Any |
 
 ### Logging (ZA04xx)
 

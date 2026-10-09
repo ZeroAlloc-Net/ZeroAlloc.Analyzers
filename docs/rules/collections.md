@@ -37,7 +37,13 @@ flowchart TD
     Q7 -->|No| Q8{Already materialized,\ncalling ToList/ToArray again?}
 
     Q8 -->|Yes| Redundant["ZA0108 — Remove redundant materialization"]
-    Q8 -->|No| ZeroLen["ZA0109 — Use Array.Empty&lt;T&gt;() for zero-length"]
+    Q8 -->|No| Q9{Reading Keys or Values of\na ConcurrentDictionary?}
+
+    Q9 -->|Yes| CDict["ZA0111 — Enumerate the dictionary"]
+    Q9 -->|No| Q10{Declaring a params\nT[] parameter?}
+
+    Q10 -->|Yes| ParamsSpan["ZA0110 — Declare params as ReadOnlySpan&lt;T&gt;"]
+    Q10 -->|No| ZeroLen["ZA0109 — Use Array.Empty&lt;T&gt;() for zero-length"]
 ```
 
 ---
@@ -606,4 +612,88 @@ public void Process(Order order, string[] notes = null)
 ```csharp
 #pragma warning disable ZA0109
 // or in .editorconfig: dotnet_diagnostic.ZA0109.severity = none
+```
+
+---
+
+## ZA0110 — Declare params as ReadOnlySpan\<T\> {#za0110}
+
+> **Severity**: Info | **Min TFM**: net8.0 (C# 13) | **Code fix**: Yes, for methods not visible outside the assembly
+
+### Why
+
+Every call to a `params T[]` method that passes individual arguments allocates a new array. Since C# 13, a `params ReadOnlySpan<T>` parameter gets its arguments from an inline array on the stack on .NET 8 and later, so calls allocate nothing. This is the declaration side of [ZA0602](linq.md#za0602).
+
+The rule reports a `params T[]` parameter whose method only reads it: indexing, `Length`, `foreach`, or passing it on as a `ReadOnlySpan<T>`. A method that stores, returns or captures the array, writes its elements, or is used as a method group keeps the array. So do overrides, interface implementations, virtual, abstract and partial methods, async methods and iterators. Calling a member on an element of a type parameter without a `class` constraint keeps it too, because on a span of structs that call would run on a copy.
+
+A `params ReadOnlySpan<T>` parameter is implicitly `scoped`, so it cannot leave the method. The rule therefore also skips methods that return a ref struct or return by reference, that take a `ref` or `out` parameter of a ref struct type, or that are instance members of a ref struct. It skips methods that store the array as a span in a local or field, return it, pass it by reference, or pass it to a call that returns a ref struct or takes another ref struct by `ref` or `out`. It skips methods with an overload in the type or its base types, where a new signature could clash or change which overload callers bind to, and constructors of attribute types, whose arguments cannot bind to a span.
+
+For a method other assemblies can call, changing the parameter type is a binary breaking change, so the rule suggests adding a `params ReadOnlySpan<T>` overload instead and offers no code fix. Because it has to see every use of the method, the rule reports when the whole project is analyzed, on build or with full-solution analysis, not while you type. The rule needs .NET 8 or later, where `params ReadOnlySpan<T>` uses an inline array, and C# 13. When the assembly has `InternalsVisibleTo`, internal methods count as visible outside the assembly too.
+
+### Before
+
+```csharp
+// ❌ every call allocates an int[]
+private static int Max(params int[] values)
+{
+    var max = int.MinValue;
+    foreach (var value in values)
+        max = Math.Max(max, value);
+    return max;
+}
+```
+
+### After
+
+```csharp
+// ✓ calls pass an inline array on the stack
+private static int Max(params ReadOnlySpan<int> values)
+{
+    var max = int.MinValue;
+    foreach (var value in values)
+        max = Math.Max(max, value);
+    return max;
+}
+```
+
+### Suppression
+
+```csharp
+#pragma warning disable ZA0110
+// or in .editorconfig: dotnet_diagnostic.ZA0110.severity = none
+```
+
+---
+
+## ZA0111 — Enumerate the ConcurrentDictionary instead of its Keys or Values {#za0111}
+
+> **Severity**: Info | **Min TFM**: Any | **Code fix**: Yes
+
+### Why
+
+Every read of `ConcurrentDictionary<TKey, TValue>.Keys` or `.Values` takes every lock in the dictionary and copies the contents into a new `ReadOnlyCollection`. Enumerating the dictionary itself takes no locks and copies nothing. The rule reports `Keys` or `Values` used directly by `foreach` or a LINQ call. A snapshot stored in a variable is left alone, because a consistent copy may be what you want. `Any()`, `Count()` and `LongCount()` without a predicate are not reported either: they do not enumerate the snapshot, and the dictionary's own `IsEmpty` or `Count` avoids the copy.
+
+The code fix deconstructs the pair, so the loop body stays the same. It switches the loop from a point-in-time snapshot to live enumeration, which can see keys added or removed while it runs. For that reason the fix is not offered when the loop body writes to the same dictionary, through the indexer or with `TryAdd`, `GetOrAdd`, `AddOrUpdate`, `TryUpdate`, `TryRemove` or `Clear`: over a snapshot that loop ends, over the live dictionary it may not.
+
+### Before
+
+```csharp
+// ❌ locks the whole dictionary and copies every key
+foreach (var sessionId in _sessions.Keys)
+    Expire(sessionId);
+```
+
+### After
+
+```csharp
+// ✓ lock-free enumeration, no copy
+foreach (var (sessionId, _) in _sessions)
+    Expire(sessionId);
+```
+
+### Suppression
+
+```csharp
+#pragma warning disable ZA0111
+// or in .editorconfig: dotnet_diagnostic.ZA0111.severity = none
 ```

@@ -21,6 +21,9 @@ flowchart TD
     Op -->|Parsing from Span| PA["ZA0206 — Avoid span.ToString() before Parse"]
     Op -->|Joining value types| JB["ZA0208 — Avoid boxing overload of string.Join"]
     Op -->|Concatenating value types| VB["ZA0209 — Avoid boxing in string concat"]
+    Op -->|Constant UTF-8 encoding| U8["ZA0210 — Use a u8 literal"]
+    Op -->|Splitting on a separator| SS["ZA0211 — Use the span-based Split"]
+    Op -->|Parse that may throw| TP["ZA0212 — Use TryParse"]
 ```
 
 ---
@@ -811,4 +814,113 @@ public interface ITraceWriter
 ```csharp
 #pragma warning disable ZA0209
 // or in .editorconfig: dotnet_diagnostic.ZA0209.severity = none
+```
+
+---
+
+## ZA0210 — Use a UTF-8 string literal {#za0210}
+
+> **Severity**: Warning | **Min TFM**: Any (C# 11) | **Code fix**: Yes
+
+### Why
+
+`Encoding.UTF8.GetBytes("constant")` allocates a new array and encodes the same text on every call. Since C# 11, a `"constant"u8` literal is a `ReadOnlySpan<byte>` that points at bytes the compiler stores in the assembly, so it costs nothing at run time. The rule only reports calls whose result is used as a `ReadOnlySpan<byte>`, so the literal is a drop-in replacement. Kept as a `byte[]`, the literal would need `.ToArray()` and gains nothing.
+
+### Before
+
+```csharp
+// ❌ allocates and encodes "\r\n" on every write
+writer.Write(Encoding.UTF8.GetBytes("\r\n"));
+```
+
+### After
+
+```csharp
+// ✓ static data, no allocation
+writer.Write("\r\n"u8);
+```
+
+### Suppression
+
+```csharp
+#pragma warning disable ZA0210
+// or in .editorconfig: dotnet_diagnostic.ZA0210.severity = none
+```
+
+---
+
+## ZA0211 — Use the span-based Split {#za0211}
+
+> **Severity**: Info | **Min TFM**: net9.0 | **Code fix**: No
+
+### Why
+
+`string.Split` allocates the result array and a new string for every part, even when the loop only looks at each part once. Since .NET 9, `MemoryExtensions.Split` on a `ReadOnlySpan<char>` enumerates the parts as `Range` values over the original text, with no allocation. The rule reports a `foreach` directly over `string.Split` with a single `char` or non-empty constant string separator and no `StringSplitOptions`, because the span enumerator supports neither multiple separators nor options. There is no code fix: the loop variable changes from `string` to `Range`, so the body has to change.
+
+The span enumerator is a ref struct, so it cannot be live across an `await` or a `yield`. The rule stays silent when the loop body awaits or yields, and, before C# 13, anywhere in an async method or an iterator. Note that a `null` string throws a `NullReferenceException` from `string.Split`, while `AsSpan()` turns it into an empty span and the loop runs without throwing.
+
+### Before
+
+```csharp
+// ❌ allocates the array and one string per field
+foreach (var field in line.Split(','))
+    total += int.Parse(field);
+```
+
+### After
+
+```csharp
+// ✓ no allocation
+var span = line.AsSpan();
+foreach (var range in span.Split(','))
+    total += int.Parse(span[range]);
+```
+
+### Suppression
+
+```csharp
+#pragma warning disable ZA0211
+// or in .editorconfig: dotnet_diagnostic.ZA0211.severity = none
+```
+
+---
+
+## ZA0212 — Use TryParse instead of catching the exception from Parse {#za0212}
+
+> **Severity**: Info | **Min TFM**: Any | **Code fix**: No
+
+### Why
+
+When `Parse` fails it allocates an exception and captures a stack trace, which costs far more than the parse itself. Code that catches that exception to fall back to a default pays this on every bad input. `TryParse` reports failure through its return value and typically allocates nothing. The rule reports a `Parse` call inside a `try` whose matching `catch` swallows the exception, for any type with a `TryParse` that takes the same parameters plus an `out` result. That covers the numeric types, `Guid`, `DateTime`, `Enum.Parse<T>` and your own `IParsable<T>` types.
+
+`TryParse` is not always a drop-in replacement. The `catch` may also cover other statements in the `try` that can throw, or read the exception, for example to log its message. Keep that handling when you rewrite the code.
+
+### Before
+
+```csharp
+// ❌ every malformed value allocates and throws an exception
+int port;
+try
+{
+    port = int.Parse(value);
+}
+catch (FormatException)
+{
+    port = DefaultPort;
+}
+```
+
+### After
+
+```csharp
+// ✓ no exception on bad input
+if (!int.TryParse(value, out var port))
+    port = DefaultPort;
+```
+
+### Suppression
+
+```csharp
+#pragma warning disable ZA0212
+// or in .editorconfig: dotnet_diagnostic.ZA0212.severity = none
 ```

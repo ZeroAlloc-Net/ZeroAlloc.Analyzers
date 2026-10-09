@@ -68,9 +68,9 @@ When your project uses `<TargetFrameworks>` (plural), MSBuild invokes the compil
 
 This means:
 
-- A `net8.0` build runs all 50 rules.
+- A `net8.0` build runs 55 of the 57 rules. ZA0211 needs .NET 9, and ZA0110 needs C# 13, while `net8.0` defaults to C# 12.
 - A `net6.0` build automatically skips ZA0101, ZA0102, ZA0104, ZA0205, ZA0701, ZA0801, and ZA1001 — any rule whose minimum TFM is higher than `net6.0`.
-- A `netstandard2.0` build skips all TFM-gated rules and runs only the 36 rules whose minimum TFM is `Any`.
+- A `netstandard2.0` build skips all TFM-gated rules and runs 38 of the 57 rules, or 40 with the System.Memory package: those with no TFM requirement that are also not gated on a language version or an API the target lacks. ZA0303 needs `ArrayPool<T>` from System.Buffers and ZA0304 needs `ReadOnlySpan<T>` from System.Memory, which brings System.Buffers with it.
 
 For CI pipelines that build multiple TFMs in parallel, the per-TFM cost is independent: each TFM compilation gets exactly the rule set that applies to it, with no wasted work.
 

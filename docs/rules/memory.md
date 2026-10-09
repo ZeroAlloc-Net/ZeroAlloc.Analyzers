@@ -18,6 +18,9 @@ flowchart TD
     Q2 -->|No| Pool["ZA0302 — ArrayPool&lt;T&gt;.Shared.Rent(size)"]
     Q3 -->|Yes| Stack["ZA0301 — stackalloc T[N] → Span&lt;T&gt;"]
     Q3 -->|No| Pool
+    Pool --> Return["ZA0303 — Return the rented array"]
+    Q1 -->|No| Q4{Constant lookup table?}
+    Q4 -->|Yes| Table["ZA0304 — static ReadOnlySpan&lt;T&gt; property"]
 ```
 
 ---
@@ -413,4 +416,91 @@ await destination.WriteAsync(buffer[..read], ct);
 ```csharp
 #pragma warning disable ZA0302
 // or in .editorconfig: dotnet_diagnostic.ZA0302.severity = none
+```
+
+---
+
+## ZA0303 — Return rented arrays to the pool {#za0303}
+
+> **Severity**: Warning | **Min TFM**: Any | **Code fix**: No
+
+### Why
+
+`ArrayPool<T>.Rent` only saves an allocation if the array goes back with `Return`. An array that is rented and never returned is a plain allocation plus pool bookkeeping, and the pool has to allocate again for the next caller. The rule reports a rented array that is stored in a local, never passed to `Return`, and never leaves the method.
+
+It stays silent once the array may have changed owner: when it is returned, stored in a field, aliased, captured by a lambda, converted to `Memory<T>` or `ReadOnlyMemory<T>`, or passed to a method that could keep it. Passing it to `Stream`, `Array`, `Buffer` or `MemoryExtensions` methods does not count when the call returns `void`, a primitive, or a span, because those only read or write the array; any other return type, such as `Memory<T>`, is an escape. A `Span<T>` or `ReadOnlySpan<T>` over the array never counts as an escape, even when the method returns it: a span cannot carry ownership back to the pool, so an array that leaves the method only as a span is never returned. A `Return` outside a `finally` is fine: if an exception skips it, the GC collects the array.
+
+On `netstandard2.0`, the rule needs `ArrayPool<T>` from the System.Buffers package, which the System.Memory package brings in.
+
+### Before
+
+```csharp
+// ❌ the rented buffer is never returned, so every call allocates anyway
+public uint Checksum(Stream stream)
+{
+    var buffer = ArrayPool<byte>.Shared.Rent(4096);
+    var read = stream.Read(buffer, 0, buffer.Length);
+    return System.IO.Hashing.Crc32.HashToUInt32(buffer.AsSpan(0, read));
+}
+```
+
+### After
+
+```csharp
+// ✓ the buffer goes back to the pool for the next caller
+public uint Checksum(Stream stream)
+{
+    var buffer = ArrayPool<byte>.Shared.Rent(4096);
+    try
+    {
+        var read = stream.Read(buffer, 0, buffer.Length);
+        return System.IO.Hashing.Crc32.HashToUInt32(buffer.AsSpan(0, read));
+    }
+    finally
+    {
+        ArrayPool<byte>.Shared.Return(buffer);
+    }
+}
+```
+
+### Suppression
+
+```csharp
+#pragma warning disable ZA0303
+// or in .editorconfig: dotnet_diagnostic.ZA0303.severity = none
+```
+
+---
+
+## ZA0304 — Use a ReadOnlySpan\<T\> property for constant lookup tables {#za0304}
+
+> **Severity**: Info | **Min TFM**: Any (wider primitives: net7.0) | **Code fix**: Yes
+
+### Why
+
+`static readonly int[] Table = { … }` allocates an array when the type is initialized and copies the constants into it. A `static ReadOnlySpan<int> Table => [ … ];` property reads them straight from the assembly's data section, with no allocation and no type-initializer work. Call sites that index the table, read `Length` or `foreach` over it compile unchanged.
+
+The rule reports `private` and `internal` tables of primitives whose every use is a read. `byte`, `sbyte` and `bool` tables qualify on every runtime; other primitives need `RuntimeHelpers.CreateSpan`, which arrived in .NET 7. On `netstandard2.0`, the rule needs `ReadOnlySpan<T>` from the System.Memory package. Because it has to see every use of the field, the rule reports when the whole project is analyzed, on build or with full-solution analysis, not while you type. The code fix writes a collection expression on C# 12 and later and `new T[] { … }` before that; the compiler reads both from static data.
+
+Some tables are skipped because a property would not work for every use. Internal tables are skipped when the assembly has `InternalsVisibleTo`, because a friend assembly can read the field where the rule cannot see it. A table read inside an async function or an iterator is skipped, because a span cannot live across an `await` or a `yield`. A table read inside an expression-tree lambda is skipped, because an expression tree cannot use a span.
+
+### Before
+
+```csharp
+// ❌ allocated and filled at type initialization
+private static readonly byte[] HexDigits = { 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 65, 66, 67, 68, 69, 70 };
+```
+
+### After
+
+```csharp
+// ✓ read from the assembly's static data, no allocation
+private static ReadOnlySpan<byte> HexDigits => [48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 65, 66, 67, 68, 69, 70];
+```
+
+### Suppression
+
+```csharp
+#pragma warning disable ZA0304
+// or in .editorconfig: dotnet_diagnostic.ZA0304.severity = none
 ```

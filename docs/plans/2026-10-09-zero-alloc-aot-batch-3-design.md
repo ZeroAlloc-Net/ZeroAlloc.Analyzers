@@ -47,12 +47,14 @@ ZA0207 stays unused because nothing records why it was skipped. ZA1103 stays res
 
 **Detection:**
 1. A method declared in source has a `params T[]` parameter.
-2. The compilation's `LanguageVersion` is 13 or later.
+2. The compilation's `LanguageVersion` is 13 or later and `InlineArrayAttribute` exists (.NET 8).
 3. Skip overrides, explicit and implicit interface implementations, `extern` methods, and methods whose array **escapes**. The array escapes if it is assigned, stored, returned, captured by a lambda or local function, passed to a parameter typed `T[]`, `object` or an interface, or used through an array-only member (anything except the indexer, `Length` and `foreach`).
 
-**Message:**
-- For non-exposed methods: `"params parameter '{0}' can be declared as 'params ReadOnlySpan<{1}>' so callers do not allocate"`
-- For methods visible outside the assembly: `"Add a 'params ReadOnlySpan<{1}>' overload of '{2}' so callers do not allocate; changing '{0}' itself is a binary breaking change"`
+Reported from a compilation-end action, because the check needs every use of the symbol in the compilation. Methods used as a method group anywhere in the compilation are not reported, nor are virtual, abstract or partial methods, async methods and iterators. The rule requires InlineArrayAttribute (.NET 8). It skips primary-constructor parameters, methods declared in generated files, and methods implementing an interface member through any type in the compilation. It skips methods with a caller in this compilation that passes the params argument in normal form with a type other than exactly T[], including null, or that is inside an expression-tree lambda. Internal members count as exposed when the assembly has InternalsVisibleTo.
+
+A params span is implicitly scoped, so the rule also skips methods where the fixed span could escape: methods that return a ref struct or by reference, take ref or out parameters of a ref struct type, or are instance members of a ref struct; and methods where a conversion of the array to `ReadOnlySpan<T>` is assigned to a local or field, returned, passed by reference, or passed to a call that returns a ref struct or takes another ref struct by ref or out. It skips methods that share their name with another method in the containing type or its base types, and members of types deriving from `System.Attribute`. A call on an element of a type parameter without a reference type constraint keeps the array, like one on a mutable struct.
+
+**Message:** `"params parameter '{0}' of '{1}' can be 'params ReadOnlySpan<{2}>' so callers do not allocate{3}"`. `{1}` is the method name, or the type name for a constructor. `{3}` is empty for methods not visible outside the assembly, and otherwise `"; it is visible outside the assembly, so add an overload instead of changing it"`, because changing the signature there is a binary breaking change.
 
 **Code fix:** only for methods not visible outside the assembly. It changes the parameter type in place. Exposed methods get no fix, because an overload's body is the author's call.
 
@@ -60,11 +62,11 @@ ZA0207 stays unused because nothing records why it was skipped. ZA1103 stays res
 
 **Problem:** every read of `ConcurrentDictionary<TKey, TValue>.Keys` or `.Values` takes every lock and copies the contents into a new collection. Enumerating the dictionary itself takes no locks and makes no copy.
 
-**Detection:** `.Keys` or `.Values` of a `ConcurrentDictionary<,>` is the collection of a `foreach`, or the source of a LINQ call. A snapshot assigned to a local or field and read later is not reported, because taking a consistent snapshot may be the intent.
+**Detection:** `.Keys` or `.Values` of a `ConcurrentDictionary<,>` is the collection of a `foreach`, or the source of a LINQ call. A snapshot assigned to a local or field and read later is not reported, because taking a consistent snapshot may be the intent. Predicate-less `Any`, `Count` and `LongCount` are not reported, because they do not enumerate the snapshot.
 
 **Message:** `"'{0}' copies the dictionary under all locks; enumerate the dictionary and use '{1}' instead"`
 
-**Code fix:** for `foreach`, enumerate the dictionary and replace uses of the loop variable with `.Key` or `.Value`.
+**Code fix:** For foreach, deconstruct the pair: `foreach (var key in map.Keys)` becomes `foreach (var (key, _) in map)`, leaving the loop body unchanged. Offered only when `KeyValuePair<TKey, TValue>.Deconstruct` exists and the loop variable is `var` or the element type. The fix switches from a point-in-time snapshot to live enumeration, so it is withheld when the loop body writes to the same dictionary through the indexer setter, `TryAdd`, `GetOrAdd`, `AddOrUpdate`, `TryUpdate`, `TryRemove` or `Clear`.
 
 ### ZA0210 — `UseUtf8StringLiteral`
 
@@ -90,7 +92,7 @@ When the result is kept as a `byte[]` (assigned, returned, stored), the call is 
 2. No `StringSplitOptions` argument, or `StringSplitOptions.None`.
 3. `MemoryExtensions.Split(ReadOnlySpan<char>, char)` exists in the compilation (.NET 9).
 
-A split whose array is assigned or used other than by that `foreach` is not reported.
+A split whose array is assigned or used other than by that `foreach` is not reported. The span enumerator is a ref struct, so the rule also skips loops whose body contains an `await` or a `yield`, and loops in async functions or iterators below C# 13.
 
 **Message:** `"Enumerate '{0}.AsSpan().Split(...)' to split without allocating the parts"`
 
@@ -114,7 +116,11 @@ A split whose array is assigned or used other than by that `foreach` is not repo
 **Detection:**
 1. A `Rent` call on any `ArrayPool<T>` instance is assigned to a local.
 2. The method has no `Return` call with that local as its first argument.
-3. The local does not **escape**. It escapes if it is returned, assigned to a field, property, `ref` or `out` parameter, captured by a lambda or local function, or passed as an argument other than through an implicit conversion to `Span<T>`, `ReadOnlySpan<T>`, `Memory<T>` or `ReadOnlyMemory<T>`. Passing the array itself, even to a `T[]` parameter, counts as an escape, because the callee may return it to the pool. An escape means ownership may have moved, so the rule stays silent.
+3. The local does not **escape**. It escapes if it is returned, assigned to a field, property, `ref` or `out` parameter, captured by a lambda or local function, or passed as an argument other than through an implicit conversion to `Span<T>` or `ReadOnlySpan<T>`. Conversions to `Memory<T>` and `ReadOnlyMemory<T>` are escapes. Passing the array itself, even to a `T[]` parameter, counts as an escape, because the callee may return it to the pool. An escape means ownership may have moved, so the rule stays silent.
+
+Passing the array to a method of System.MemoryExtensions, System.Array, System.Buffer or System.IO.Stream, including Stream subclasses, is not an escape: those APIs read or write the array without taking ownership. Memory<T> and ReadOnlyMemory<T> conversions and constructions are escapes. A trusted call is non-escaping when it returns void, a primitive, a Span or a ReadOnlySpan.
+
+A span cannot carry ownership back to the pool, so span conversions, span constructions and trusted span-returning calls are never escapes, even when the span is returned directly, through a span local, or from a span-returning function. A Rent whose array leaves the method only as a span is a leak and is reported.
 
 A `Return` outside a `finally` is **not** reported. .NET's guidance accepts letting the GC collect the buffer on the exception path, and returning in a `finally` is wrong if an async operation may still be writing to the buffer. Only the never-returned case is reported, which is what makes Warning safe.
 
@@ -127,11 +133,13 @@ A `Return` outside a `finally` is **not** reported. .NET's guidance accepts lett
 **Detection:**
 1. The field is a `private` or `internal` `static readonly T[]` initialized by an array creation or collection expression whose elements are all constants.
 2. `T` is `byte`, `sbyte` or `bool`. Or `T` is `char`, `short`, `ushort`, `int`, `uint`, `long`, `ulong`, `float` or `double`, and `RuntimeHelpers.CreateSpan` exists (.NET 7). These rules are the ones the #70 IL probe observed.
-3. Every reference to the field is read-only: element read, `Length`, `foreach`, or an implicit conversion to `ReadOnlySpan<T>`. Any other use (LINQ, passing as an array or object, `ref` element access) silences the rule.
+3. Every reference to the field is read-only: element read, `Length`, `foreach`, or an implicit conversion to `ReadOnlySpan<T>`. Any other use, such as LINQ, passing it as an array or object, or `ref` element access, silences the rule.
+
+Reported from a compilation-end action, because the check needs every use of the symbol in the compilation. Generated code is analyzed but not reported, and tables declared in generated files are skipped. Internal tables are skipped when the assembly has InternalsVisibleTo. Uses inside async functions, iterators and expression-tree lambdas disqualify the table.
 
 **Message:** `"Lookup table '{0}' can be a 'static ReadOnlySpan<{1}>' property that reads constant data without allocating"`
 
-**Code fix:** replace the field with `private static ReadOnlySpan<T> Name => [ … ];` and keep the original accessibility. Call sites compile unchanged.
+**Code fix:** replace the field with `private static ReadOnlySpan<T> Name => [ … ];` and keep the original accessibility. Call sites compile unchanged. The fix emits a collection expression on C# 12 and later, otherwise `new T[] { … }`, and keeps the original element text and comments.
 
 ### ZA1402 — `UseStatePassingOverload`
 

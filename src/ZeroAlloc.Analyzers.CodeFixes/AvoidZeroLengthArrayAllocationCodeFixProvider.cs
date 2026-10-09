@@ -46,33 +46,20 @@ public sealed class AvoidZeroLengthArrayAllocationCodeFixProvider : CodeFixProvi
 
         var elementType = arrayType.ElementType.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat);
 
-        // Build: Array.Empty<T>()
-        var arrayEmptyCall = SyntaxFactory.ParseExpression($"Array.Empty<{elementType}>()")
+        // Build: Array.Empty<T>(), importing System where it is not in scope.
+        var arrayEmptyCall = SyntaxFactory.InvocationExpression(
+                SyntaxFactory.MemberAccessExpression(
+                    SyntaxKind.SimpleMemberAccessExpression,
+                    ImportedTypeSyntax.For(document, semanticModel.Compilation.GetSpecialType(SpecialType.System_Array)),
+                    SyntaxFactory.GenericName(
+                        SyntaxFactory.Identifier("Empty"),
+                        SyntaxFactory.TypeArgumentList(
+                            SyntaxFactory.SingletonSeparatedList(SyntaxFactory.ParseTypeName(elementType))))))
             .WithTriviaFrom(arrayCreation);
 
         var root = await document.GetSyntaxRootAsync(ct);
         if (root is null) return document;
 
-        var newRoot = root.ReplaceNode(arrayCreation, arrayEmptyCall);
-
-        // Add `using System;` if not present
-        var compilationUnit = (CompilationUnitSyntax)newRoot;
-        var hasSystemUsing = compilationUnit.Usings.Any(u => u.Name?.ToString() == "System")
-            || compilationUnit.Members.OfType<BaseNamespaceDeclarationSyntax>()
-                .Any(ns => ns.Usings.Any(u => u.Name?.ToString() == "System"));
-        if (!hasSystemUsing)
-        {
-            // Detect the document's line ending style from existing trivia to stay platform-neutral
-            var eol = root.DescendantTrivia()
-                .FirstOrDefault(t => t.IsKind(SyntaxKind.EndOfLineTrivia))
-                .ToFullString();
-            if (string.IsNullOrEmpty(eol)) eol = "\n";
-
-            var usingDirective = SyntaxFactory.UsingDirective(SyntaxFactory.IdentifierName("System"))
-                .WithTrailingTrivia(SyntaxFactory.EndOfLine(eol), SyntaxFactory.EndOfLine(eol));
-            newRoot = compilationUnit.AddUsings(usingDirective);
-        }
-
-        return document.WithSyntaxRoot(newRoot);
+        return document.WithSyntaxRoot(root.ReplaceNode(arrayCreation, arrayEmptyCall));
     }
 }

@@ -188,6 +188,38 @@ public class ZA0109_AvoidZeroLengthArrayAllocationTests
     }
 
     [Fact]
+    public async Task NewIntArrayZero_CodeFix_WhenGlobalUsingInOtherFile_NoExtraUsing()
+    {
+        var source = """
+            class C
+            {
+                void M()
+                {
+                    var arr = {|#0:new int[0]|};
+                }
+            }
+            """;
+
+        var fixedSource = """
+            class C
+            {
+                void M()
+                {
+                    var arr = Array.Empty<int>();
+                }
+            }
+            """;
+
+        var expected = CSharpCodeFixVerifier<AvoidZeroLengthArrayAllocationAnalyzer, AvoidZeroLengthArrayAllocationCodeFixProvider>
+            .Diagnostic(DiagnosticIds.AvoidZeroLengthArrayAllocation)
+            .WithLocation(0)
+            .WithArguments("int");
+
+        await CSharpCodeFixVerifier<AvoidZeroLengthArrayAllocationAnalyzer, AvoidZeroLengthArrayAllocationCodeFixProvider>
+            .VerifyCodeFixWithOtherDocumentsAsync(source, fixedSource, expected, ["global using System;"]);
+    }
+
+    [Fact]
     public async Task NewIntArrayZero_CodeFix_WhenSystemUsingExists_NoExtraUsing()
     {
         var source = """
