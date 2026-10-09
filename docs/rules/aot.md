@@ -186,3 +186,40 @@ Calls that bind a type known only at run time, such as `Get(Type)` with a non-`t
 #pragma warning disable ZA1707
 // or in .editorconfig: dotnet_diagnostic.ZA1707.severity = none
 ```
+
+---
+
+## ZA1708 — Use a source-generated options validator {#za1708}
+
+> **Severity**: Info | **Min TFM**: Any (Options 8.0+) | **Code fix**: No
+
+### Why
+
+`ValidateDataAnnotations()` reads your options type's `[Required]`, `[Range]` and other attributes with reflection every time the options are validated. That is not trim-safe, and it costs reflection at startup. Since .NET 8, the `[OptionsValidator]` source generator writes the same checks as plain code: declare a `partial` validator class for your options type and register it instead. The rule only reports where `[OptionsValidator]` is available, that is with Microsoft.Extensions.Options 8.0 or later.
+
+### Before
+
+```csharp
+// ❌ reflection over the attributes at validation time
+services.AddOptions<SmtpOptions>()
+    .BindConfiguration("Smtp")
+    .ValidateDataAnnotations();
+```
+
+### After
+
+```csharp
+// ✓ the generator writes the validation code
+[OptionsValidator]
+public partial class SmtpOptionsValidator : IValidateOptions<SmtpOptions>;
+
+services.AddOptions<SmtpOptions>().BindConfiguration("Smtp");
+services.AddSingleton<IValidateOptions<SmtpOptions>, SmtpOptionsValidator>();
+```
+
+### Suppression
+
+```csharp
+#pragma warning disable ZA1708
+// or in .editorconfig: dotnet_diagnostic.ZA1708.severity = none
+```

@@ -93,4 +93,5 @@ public static class DiagnosticIds
     public const string AvoidTypeLoadingByName = "ZA1705";
     public const string MarkLibraryAotCompatible = "ZA1706";
     public const string UseConfigurationBindingGenerator = "ZA1707";
+    public const string UseOptionsValidatorGenerator = "ZA1708";
 }
