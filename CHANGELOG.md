@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.5.5](https://github.com/ZeroAlloc-Net/ZeroAlloc.Analyzers/compare/v1.5.4...v1.5.5) (2026-10-09)
+
+
+### Bug Fixes
+
+* stop ZA0602 reporting params calls that do not allocate ([#71](https://github.com/ZeroAlloc-Net/ZeroAlloc.Analyzers/issues/71)) ([b69fcbb](https://github.com/ZeroAlloc-Net/ZeroAlloc.Analyzers/commit/b69fcbb695e721d13e3612acfbd79500f1d878d6)), closes [#70](https://github.com/ZeroAlloc-Net/ZeroAlloc.Analyzers/issues/70)
+
 ## [1.5.4](https://github.com/ZeroAlloc-Net/ZeroAlloc.Analyzers/compare/v1.5.3...v1.5.4) (2026-09-25)
 
 
