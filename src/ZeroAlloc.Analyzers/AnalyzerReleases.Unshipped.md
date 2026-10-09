@@ -13,3 +13,4 @@ ZA0212  | Performance.Strings     | Info     | UseTryParseAnalyzer
 ZA0211  | Performance.Strings     | Info     | UseSpanSplitAnalyzer
 ZA0110  | Performance.Collections | Info     | PreferParamsSpanAnalyzer
 ZA1503  | Performance.ValueTypes  | Info     | ImplementEquatableOnStructKeyAnalyzer
+ZA1402  | Performance.Delegates   | Info     | UseStatePassingOverloadAnalyzer

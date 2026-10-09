@@ -8,12 +8,14 @@ sidebar_position: 14
 
 # Delegates (ZA14xx)
 
-Lambda expressions in C# can either capture variables from their enclosing scope (creating a closure object on the heap) or capture nothing (making them eligible for caching as a static singleton delegate). The ZA14xx rules help you eliminate unnecessary delegate allocations by using `static` lambdas where no capture is needed.
+Lambda expressions in C# can either capture variables from their enclosing scope (creating a closure object on the heap) or capture nothing (making them eligible for caching as a static singleton delegate). The ZA14xx rules help you eliminate unnecessary delegate allocations: use `static` lambdas where no capture is needed, and pass state through the API instead of capturing it where the API allows.
 
 ```mermaid
 flowchart TD
     L{Does the lambda\ncapture any variable?}
-    L -->|Yes — captures instance,\nlocal, or loop variable| Closure["New closure object\nallocated per call site invocation"]
+    L -->|Yes — captures instance,\nlocal, or loop variable| Q{Does the API take\na state argument?}
+    Q -->|Yes| State["Pass the value as state,\nmake the lambda static\nZA1402"]
+    Q -->|No| Closure["New closure object\nallocated per call site invocation"]
     L -->|No — only uses\nparameters and statics| Static["static lambda\ncached as singleton delegate\nZA1401"]
 ```
 
@@ -165,4 +167,41 @@ var query = items.Where(x => x.IsActive);
 #pragma warning restore ZA1401
 // or in .editorconfig:
 // dotnet_diagnostic.ZA1401.severity = none
+```
+
+---
+
+## ZA1402 — Use the state-passing overload instead of a capturing lambda {#za1402}
+
+> **Severity**: Info | **Min TFM**: Any | **Code fix**: Yes, for `GetOrAdd` and `QueueUserWorkItem`
+
+### Why
+
+A lambda that captures a local, a parameter or `this` allocates a closure object and a new delegate every time the enclosing code runs. Several BCL APIs have an overload that takes the value as a state argument and hands it back to the callback. With that overload the lambda captures nothing, so it can be `static` and the compiler caches a single delegate.
+
+The rule covers `ConcurrentDictionary.GetOrAdd` and `AddOrUpdate`, `CancellationToken.Register` and `UnsafeRegister`, `ThreadPool.QueueUserWorkItem` and `UnsafeQueueUserWorkItem`, `TaskFactory.StartNew`, and `string.Create`, wherever the state-passing overload exists for your target framework. Inside a loop, [ZA0502](boxing.md#za0502) reports the same lambda as a closure in a loop; ZA1402 tells you which overload removes it.
+
+The code fix handles `GetOrAdd` and `QueueUserWorkItem`, whose state is typed. It only runs when exactly one local or parameter is captured, that variable is never assigned again, and the lambda's parameters have no explicit types: a closure sees later writes, while a state argument is a copy taken at the call. For `QueueUserWorkItem` the fix passes `preferLocal: false`, which matches how the original overload queues work. `Register` and `StartNew` take an `object` state, so you cast it back inside the lambda yourself.
+
+### Before
+
+```csharp
+// ❌ allocates a closure and a delegate on every call
+public Widget Get(int id, WidgetFactory factory) =>
+    _cache.GetOrAdd(id, key => factory.Create(key));
+```
+
+### After
+
+```csharp
+// ✓ the static lambda is cached; the factory travels as state
+public Widget Get(int id, WidgetFactory factory) =>
+    _cache.GetOrAdd(id, static (key, factory) => factory.Create(key), factory);
+```
+
+### Suppression
+
+```csharp
+#pragma warning disable ZA1402
+// or in .editorconfig: dotnet_diagnostic.ZA1402.severity = none
 ```

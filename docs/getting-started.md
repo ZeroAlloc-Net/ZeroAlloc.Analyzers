@@ -255,6 +255,7 @@ The tables below list all 57 rules grouped by category. Rule IDs link to the cor
 | Rule ID | Title | Severity | Min TFM |
 |---------|-------|----------|---------|
 | [ZA1401](rules/delegates.md#za1401) | Use static lambda when no capture needed | Info | net5.0 |
+| [ZA1402](rules/delegates.md#za1402) | Use the state-passing overload instead of a capturing lambda | Info | Any |
 
 ### Value Types (ZA15xx)
 
