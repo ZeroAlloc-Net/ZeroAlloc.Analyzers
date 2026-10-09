@@ -207,6 +207,8 @@ The package's `buildTransitive/ZeroAlloc.Analyzers.props` gains two `CompilerVis
 
 A multi-targeted library only gets the diagnostic in its net8+ compilations. Apps are not reported; whether an app publishes with AOT is its own decision.
 
+An explicit IsAotCompatible=false also stands the rule down, because it is a decision; only an unset property is reported. The conditions are checked at compilation start, so apps, test projects and older target frameworks add no per-file work. The rule uses one whole-compilation action rather than a start action that only registers an end action, because RS1013 rejects the latter; it therefore does not literally register zero callbacks.
+
 **Message:** `"Library does not set IsAotCompatible, so the SDK's trim and AOT analyzers are off; set it for net8.0 and later target frameworks"`
 
 ### ZA1707 — `UseConfigurationBindingGenerator`
@@ -221,13 +223,15 @@ A multi-targeted library only gets the diagnostic in its net8+ compilations. App
 2. `EnableConfigurationBindingGenerator` is not `true`.
 3. The AOT stand-down does not apply. `PublishAot` turns the generator on by itself, and `IsAotCompatible` turns on IL2026.
 
+Calls whose bound type is only known at run time are not reported, because the generator cannot replace them: a `System.Type` argument that is not a typeof expression, or `Bind` with an `object`-typed instance. Calls the generator refuses with warning SYSLIB1104 are not reported either. The bound type is the method's type argument, the typeof operand, or the static type of the instance `Bind` fills; the call is skipped when that type, or any type argument within it at any depth, is a type parameter, or when it, a containing type or a type argument within it is private, protected or private protected. The rule reports only when Microsoft.Extensions.Configuration.Binder 8.0 or later is referenced, and only from C# 12, because the generator needs interceptors and emits error SYSLIB1102 below it.
+
 **Message:** `"'{0}' binds configuration with reflection; set <EnableConfigurationBindingGenerator>true</EnableConfigurationBindingGenerator> to generate the binding code"`
 
 ### ZA1708 — `UseOptionsValidatorGenerator`
 
 **Problem:** `ValidateDataAnnotations()` validates options with reflection.
 
-**Detection:** a call to `OptionsBuilderDataAnnotationsExtensions.ValidateDataAnnotations`, unless the AOT stand-down applies.
+**Detection:** a call to `OptionsBuilderDataAnnotationsExtensions.ValidateDataAnnotations`, unless the AOT stand-down applies. The rule reports only where `[OptionsValidator]` exists, that is Microsoft.Extensions.Options 8.0 or later, and only from C# 8, because the generator emits error SYSLIB1216 below it.
 
 **Message:** `"'ValidateDataAnnotations' validates with reflection; use an [OptionsValidator] source-generated validator instead"`
 
@@ -237,7 +241,9 @@ A multi-targeted library only gets the diagnostic in its net8+ compilations. App
 
 **Detection:** a dynamic invocation, member reference, indexer access or object creation, unless the AOT stand-down applies. Only the outermost dynamic operation of an expression is reported, so `d.A.B(c)` gives one diagnostic. A declaration typed `dynamic` that is never dispatched on is not reported.
 
-**Message:** `"'dynamic' dispatch uses the runtime binder, which is not supported under NativeAOT"`
+Besides the four dynamic operation kinds, binary and unary operators, compound assignments, increments and decrements on dynamic operands, and conversions from dynamic to a type other than object or dynamic, and `await` on a dynamic operand, are reported too, because each goes through the runtime binder. An `as` conversion is a type test and is not reported. The outermost-only rule applies across all of them.
+
+**Message:** `"'dynamic' dispatch uses the runtime binder, which is not supported under Native AOT"`
 
 ---
 

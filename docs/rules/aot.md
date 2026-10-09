@@ -18,6 +18,8 @@ The value ZA17xx adds is for the **common case where you have not opted in yet**
 
 Several existing ZeroAlloc rules already steer toward AOT-friendly code: [ZA1001](serialization.md#za1001) (JSON source generation), [ZA0701](regex.md#za0701) (GeneratedRegex), and [ZA0401](logging.md#za0401) (LoggerMessage).
 
+ZA1706 to ZA1709 cover the next layer: a library that has not switched the SDK analyzers on at all (ZA1706), and the reflection-based helpers in `Microsoft.Extensions` that have a source-generated replacement (ZA1707 and ZA1708), plus `dynamic` (ZA1709).
+
 ---
 
 ## ZA1701 — Avoid compiling expression trees at runtime {#za1701}
@@ -125,4 +127,145 @@ var t = typeof(AcmePlugin);
 #pragma warning disable ZA1705
 // or in .editorconfig:
 // dotnet_diagnostic.ZA1705.severity = none   (already disabled by default)
+```
+
+---
+
+## ZA1706 — Mark libraries as AOT-compatible {#za1706}
+
+> **Severity**: Info | **Min TFM**: net8.0 | **Code fix**: No
+
+### Why
+
+The SDK's trim and AOT analyzers (`IL2xxx`, `IL3xxx`) only run when a project sets `IsAotCompatible`, `PublishAot` or `EnableAotAnalyzer`. A library that sets none of them can ship code that breaks under Native AOT, and nothing warns until an app publishes with it. Setting `IsAotCompatible` turns those analyzers on for the library itself, so AOT problems surface where they can be fixed.
+
+The rule reports once per project, with no source location, for a net8.0 or later library that has never set `IsAotCompatible`. It stays silent for apps, test projects and older target frameworks. An explicit `<IsAotCompatible>false</IsAotCompatible>` also silences it, because that is a decision. The diagnostic shows on build and in full-solution analysis.
+
+### Fix
+
+```xml
+<!-- In a multi-targeted library, set it only where it applies -->
+<PropertyGroup Condition="$([MSBuild]::IsTargetFrameworkCompatible('$(TargetFramework)', 'net8.0'))">
+  <IsAotCompatible>true</IsAotCompatible>
+</PropertyGroup>
+```
+
+### Suppression
+
+The diagnostic has no source location, so `#pragma` cannot silence it. Record the decision instead:
+
+```xml
+<IsAotCompatible>false</IsAotCompatible>
+```
+
+or turn the rule off in `.editorconfig`: `dotnet_diagnostic.ZA1706.severity = none`.
+
+---
+
+## ZA1707 — Use the configuration-binding source generator {#za1707}
+
+> **Severity**: Info | **Min TFM**: Any (Binder 8.0+, C# 12) | **Code fix**: No
+
+### Why
+
+`ConfigurationBinder.Bind`, `Get` and `GetValue`, and the options helpers `Configure<T>(IConfiguration)`, `Bind` and `BindConfiguration`, walk your options type with reflection. That needs the type's members preserved from trimming, and it is slower than generated code. Since .NET 8, the configuration-binding source generator intercepts those calls and replaces them with generated code. Turning it on is one MSBuild property; the calls themselves stay the same.
+
+`PublishAot` turns the generator on automatically, so the rule stays silent there, and it also stays silent once the SDK's own AOT analyzer is enabled.
+
+Calls that bind a type known only at run time, such as `Get(Type)` with a non-`typeof` argument or `Bind(object)`, are not reported because the generator cannot replace them. Neither are calls the generator refuses with warning SYSLIB1104: a bound type that is or contains a generic type parameter, such as `Get<T>()` or `Get<List<T>>()` inside a generic method, and a bound type that is, sits inside or contains a private or protected type, which the generated code cannot name.
+
+The generator intercepts the calls, which needs C# 12; below it the generator fails the build with error SYSLIB1102. The rule therefore reports only from C# 12, and only with Microsoft.Extensions.Configuration.Binder 8.0 or later.
+
+### Fix
+
+```xml
+<PropertyGroup>
+  <EnableConfigurationBindingGenerator>true</EnableConfigurationBindingGenerator>
+</PropertyGroup>
+```
+
+### Suppression
+
+```csharp
+#pragma warning disable ZA1707
+// or in .editorconfig: dotnet_diagnostic.ZA1707.severity = none
+```
+
+---
+
+## ZA1708 — Use a source-generated options validator {#za1708}
+
+> **Severity**: Info | **Min TFM**: Any (Options 8.0+, C# 8) | **Code fix**: No
+
+### Why
+
+`ValidateDataAnnotations()` reads your options type's `[Required]`, `[Range]` and other attributes with reflection every time the options are validated. That is not trim-safe, and it costs reflection at startup. Since .NET 8, the `[OptionsValidator]` source generator writes the same checks as plain code: declare a `partial` validator class for your options type and register it instead. The rule only reports where `[OptionsValidator]` is available, that is with Microsoft.Extensions.Options 8.0 or later, and from C# 8, because below it the generator fails the build with error SYSLIB1216.
+
+The options type keeps its DataAnnotations attributes, because the generator reads them to write the checks. `.ValidateOnStart()` still works with a registered validator, so keep it if you validate at startup.
+
+### Before
+
+```csharp
+// ❌ reflection over the attributes at validation time
+services.AddOptions<SmtpOptions>()
+    .BindConfiguration("Smtp")
+    .ValidateDataAnnotations();
+```
+
+### After
+
+```csharp
+using Microsoft.Extensions.Options;
+
+// ✓ the generator writes the validation code
+[OptionsValidator]
+public partial class SmtpOptionsValidator : IValidateOptions<SmtpOptions>;
+
+services.AddOptions<SmtpOptions>().BindConfiguration("Smtp");
+services.AddSingleton<IValidateOptions<SmtpOptions>, SmtpOptionsValidator>();
+```
+
+### Suppression
+
+```csharp
+#pragma warning disable ZA1708
+// or in .editorconfig: dotnet_diagnostic.ZA1708.severity = none
+```
+
+---
+
+## ZA1709 — Avoid dynamic dispatch {#za1709}
+
+> **Severity**: Info | **Min TFM**: Any | **Code fix**: No
+
+### Why
+
+Every operation on a `dynamic` value is bound at run time by the C# runtime binder. That covers member access, method calls, indexers, operators, and conversions back to a static type. The binder inspects the object with reflection and generates code on the fly, which Native AOT cannot do and which trimming breaks. Dynamic dispatch is also far slower than a static call and allocates on every operation.
+
+The rule reports each expression that dispatches dynamically once, at its outermost dynamic operation. That includes `await` on a dynamic value, `foreach` over one, and a dynamic value used as a condition.
+
+Declaring or storing a `dynamic` value is not reported, because that does not call the binder. Returning one is not reported when the method's return type is `dynamic` or `object`. Returning it through any other static return type converts it to that type, and that conversion goes through the binder, so it is reported. An `is` or `as` type test on a dynamic value is not reported either: both check the run-time type without the binder.
+
+### Before
+
+```csharp
+// storing the result in a dynamic local does not call the binder
+dynamic response = JsonConvert.DeserializeObject(json);
+// ❌ the runtime binder resolves user, then name, then the conversion to string
+string name = response.user.name;
+```
+
+### After
+
+```csharp
+// ✓ a typed model binds at compile time
+var response = JsonSerializer.Deserialize(json, AppJsonContext.Default.Response);
+string name = response.User.Name;
+```
+
+### Suppression
+
+```csharp
+#pragma warning disable ZA1709
+// or in .editorconfig: dotnet_diagnostic.ZA1709.severity = none
 ```
