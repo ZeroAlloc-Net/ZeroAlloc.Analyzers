@@ -42,9 +42,11 @@ public class ZA0211_UseSpanSplitTests
     [InlineData("csv.Split(',', StringSplitOptions.RemoveEmptyEntries)")]
     [InlineData("csv.Split(',', ';')")]
     [InlineData("csv.Split(\"\")")]
+    [InlineData("csv.Split(csv)")]
     public async Task UnsupportedSplitForms_NoDiagnostic(string collection)
     {
-        // The span enumerator has no StringSplitOptions and splits on one separator.
+        // The span enumerator has no StringSplitOptions and splits on one separator. A string
+        // separator must be a non-empty constant, because the two Splits treat an empty one differently.
         await CSharpAnalyzerVerifier<UseSpanSplitAnalyzer>
             .VerifyNoDiagnosticAsync(Loop(collection), "net9.0", ReferenceAssemblies.Net.Net90);
     }

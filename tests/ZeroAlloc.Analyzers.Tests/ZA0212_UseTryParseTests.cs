@@ -73,6 +73,109 @@ public class ZA0212_UseTryParseTests
     }
 
     [Fact]
+    public async Task NestedTryWithOuterSwallowingCatch_Reports()
+    {
+        var source = """
+            using System;
+
+            class C
+            {
+                int M(string s)
+                {
+                    try
+                    {
+                        try
+                        {
+                            return {|#0:int.Parse(s)|};
+                        }
+                        finally
+                        {
+                            Console.WriteLine("done");
+                        }
+                    }
+                    catch (FormatException)
+                    {
+                        return 0;
+                    }
+                }
+            }
+            """;
+
+        await CSharpAnalyzerVerifier<UseTryParseAnalyzer>
+            .VerifyAnalyzerAsync(source, "net8.0", Expected("int"));
+    }
+
+    [Fact]
+    public async Task InnerUnrelatedCatchOuterSwallowingCatch_Reports()
+    {
+        var source = """
+            using System;
+
+            class C
+            {
+                int M(string s)
+                {
+                    try
+                    {
+                        try
+                        {
+                            return {|#0:int.Parse(s)|};
+                        }
+                        catch (InvalidOperationException)
+                        {
+                            return 1;
+                        }
+                    }
+                    catch (FormatException)
+                    {
+                        return 0;
+                    }
+                }
+            }
+            """;
+
+        await CSharpAnalyzerVerifier<UseTryParseAnalyzer>
+            .VerifyAnalyzerAsync(source, "net8.0", Expected("int"));
+    }
+
+    [Fact]
+    public async Task RethrowingCatchBeforeSwallowingCatch_NoDiagnostic()
+    {
+        // The first catch that handles a FormatException rethrows it, so bad input still throws.
+        await CSharpAnalyzerVerifier<UseTryParseAnalyzer>
+            .VerifyNoDiagnosticAsync(
+                TryCatch("int.Parse(s)", "catch (FormatException) { throw; } catch (Exception) { return 0; }"),
+                "net8.0");
+    }
+
+    [Fact]
+    public async Task ParseInsideLambdaInTry_NoDiagnostic()
+    {
+        // The lambda runs later, outside the try.
+        var source = """
+            using System;
+
+            class C
+            {
+                Func<int> M(string s)
+                {
+                    try
+                    {
+                        return () => int.Parse(s);
+                    }
+                    catch (FormatException)
+                    {
+                        return () => 0;
+                    }
+                }
+            }
+            """;
+
+        await CSharpAnalyzerVerifier<UseTryParseAnalyzer>
+            .VerifyNoDiagnosticAsync(source, "net8.0");
+    }
+
+    [Fact]
     public async Task ParseOutsideTry_NoDiagnostic()
     {
         var source = """
