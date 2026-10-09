@@ -37,12 +37,10 @@ flowchart TD
     Q7 -->|No| Q8{Already materialized,\ncalling ToList/ToArray again?}
 
     Q8 -->|Yes| Redundant["ZA0108 — Remove redundant materialization"]
-    Q8 -->|No| Q9{Reading Keys or Values of
-a ConcurrentDictionary?}
+    Q8 -->|No| Q9{Reading Keys or Values of\na ConcurrentDictionary?}
 
     Q9 -->|Yes| CDict["ZA0111 — Enumerate the dictionary"]
-    Q9 -->|No| Q10{Declaring a params
-T[] parameter?}
+    Q9 -->|No| Q10{Declaring a params\nT[] parameter?}
 
     Q10 -->|Yes| ParamsSpan["ZA0110 — Declare params as ReadOnlySpan&lt;T&gt;"]
     Q10 -->|No| ZeroLen["ZA0109 — Use Array.Empty&lt;T&gt;() for zero-length"]

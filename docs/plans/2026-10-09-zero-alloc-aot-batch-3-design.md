@@ -47,7 +47,7 @@ ZA0207 stays unused because nothing records why it was skipped. ZA1103 stays res
 
 **Detection:**
 1. A method declared in source has a `params T[]` parameter.
-2. The compilation's `LanguageVersion` is 13 or later.
+2. The compilation's `LanguageVersion` is 13 or later and `InlineArrayAttribute` exists (.NET 8).
 3. Skip overrides, explicit and implicit interface implementations, `extern` methods, and methods whose array **escapes**. The array escapes if it is assigned, stored, returned, captured by a lambda or local function, passed to a parameter typed `T[]`, `object` or an interface, or used through an array-only member (anything except the indexer, `Length` and `foreach`).
 
 Reported from a compilation-end action, because the check needs every use of the symbol in the compilation. Methods used as a method group anywhere in the compilation are not reported, nor are virtual, abstract or partial methods, async methods and iterators. The rule requires InlineArrayAttribute (.NET 8). It skips primary-constructor parameters, methods declared in generated files, and methods implementing an interface member through any type in the compilation. It skips methods with a caller in this compilation that passes the params argument in normal form with a type other than exactly T[], including null, or that is inside an expression-tree lambda. Internal members count as exposed when the assembly has InternalsVisibleTo.
