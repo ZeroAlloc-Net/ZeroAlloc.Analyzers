@@ -275,9 +275,9 @@ Each PR body carries a `BEGIN_COMMIT_OVERRIDE` block that lists one `feat:` line
 
 ## Addendum: ZA1710 (#86)
 
-Decision on the assembly-scanning hints: report the known scanning APIs and suggest the ZeroAlloc package that replaces them, rather than leave the idea out of scope.
+Decision on the assembly-scanning hints: report the known scanning APIs and give per-package advice on the ZeroAlloc replacement, rather than leave the idea out of scope.
 
-- **Scope.** Scrutor `Scan`, MediatR `RegisterServicesFromAssembly*` and `AddMediatR` with an assembly or type, FluentValidation `AddValidatorsFromAssembly*`, and AutoMapper `AddAutoMapper` with an assembly or type. The message suggests Inject, Mediator, Validation or Mapping.
+- **Scope.** Scrutor `Scan`, MediatR `RegisterServicesFromAssembly*` and `AddMediatR` with an assembly or type, FluentValidation `AddValidatorsFromAssembly*`, and AutoMapper `AddAutoMapper` with an assembly or type. The message ends with a per-package hint held in the table, because the replacements differ: Inject registers services with a source generator; Mediator dispatches without reflection but registers only `IMediator`, so its handlers go through Inject; Validation registers validators at compile time; Mapping generates static mappers and needs no registration.
 - **Matching.** By the declaring assembly's name and the method name, held in one table. Type names are not matched, because these libraries have moved their extensions between types and packages.
-- **Stand-down.** Decided per call. The rule skips a call only when the SDK's AOT analyzer is enabled and the method or its containing type carries `RequiresUnreferencedCode` or `RequiresDynamicCode`. An unannotated API still reports, because the SDK says nothing about it, so unlike ZA1707 to ZA1709 the rule does not stand down for the whole project.
+- **Stand-down.** Decided per call. The rule skips a call only when the method or its containing type carries `RequiresUnreferencedCode` and the SDK trim analyzer is on, or carries `RequiresDynamicCode` and the SDK AOT analyzer is on. `EnableAotAnalyzer` alone does not count for the trim analyzer. An unannotated API still reports, because the SDK says nothing about it, so unlike ZA1707 to ZA1709 the rule does not stand down for the whole project.
 - **Code fix.** None. The replacement needs a package and attributes on the user's types.

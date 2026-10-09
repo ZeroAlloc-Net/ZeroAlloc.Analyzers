@@ -31,29 +31,34 @@ public class ZA1710_AvoidAssemblyScanningRegistrationTests
         {{extra}}
         """;
 
-    private static DiagnosticResult Expected(string api, string package) =>
+    private const string InjectHint = "ZeroAlloc.Inject registers services at compile time with a source generator";
+    private const string MediatorHint = "ZeroAlloc.Mediator dispatches without reflection; register its handlers with ZeroAlloc.Inject";
+    private const string ValidationHint = "ZeroAlloc.Validation registers validators at compile time with a source generator";
+    private const string MappingHint = "ZeroAlloc.Mapping generates mappers at compile time, with no registration needed";
+
+    private static DiagnosticResult Expected(string api, string hint) =>
         CSharpAnalyzerVerifier<AvoidAssemblyScanningRegistrationAnalyzer>
             .Diagnostic(DiagnosticIds.AvoidAssemblyScanningRegistration)
             .WithLocation(0)
-            .WithArguments(api, package);
+            .WithArguments(api, hint);
 
     [Theory]
-    [InlineData("{|#0:services.Scan(s => s.FromAssemblyOf<C>().AddClasses())|};", "ServiceCollectionExtensions.Scan", "Inject")]
-    [InlineData("services.AddMediatR(cfg => {|#0:cfg.RegisterServicesFromAssembly(typeof(C).Assembly)|});", "MediatRServiceConfiguration.RegisterServicesFromAssembly", "Mediator")]
-    [InlineData("services.AddMediatR(cfg => {|#0:cfg.RegisterServicesFromAssemblies(typeof(C).Assembly)|});", "MediatRServiceConfiguration.RegisterServicesFromAssemblies", "Mediator")]
-    [InlineData("services.AddMediatR(cfg => {|#0:cfg.RegisterServicesFromAssemblyContaining<C>()|});", "MediatRServiceConfiguration.RegisterServicesFromAssemblyContaining", "Mediator")]
-    [InlineData("services.AddMediatR(cfg => {|#0:cfg.RegisterServicesFromAssemblyContaining(typeof(C))|});", "MediatRServiceConfiguration.RegisterServicesFromAssemblyContaining", "Mediator")]
-    [InlineData("{|#0:services.AddValidatorsFromAssembly(typeof(C).Assembly)|};", "ServiceCollectionExtensions.AddValidatorsFromAssembly", "Validation")]
-    [InlineData("{|#0:services.AddValidatorsFromAssemblies(new[] { typeof(C).Assembly })|};", "ServiceCollectionExtensions.AddValidatorsFromAssemblies", "Validation")]
-    [InlineData("{|#0:services.AddValidatorsFromAssemblyContaining<C>()|};", "ServiceCollectionExtensions.AddValidatorsFromAssemblyContaining", "Validation")]
-    [InlineData("{|#0:services.AddValidatorsFromAssemblyContaining(typeof(C))|};", "ServiceCollectionExtensions.AddValidatorsFromAssemblyContaining", "Validation")]
-    [InlineData("{|#0:services.AddAutoMapper(typeof(C).Assembly)|};", "ServiceCollectionExtensions.AddAutoMapper", "Mapping")]
-    [InlineData("{|#0:services.AddAutoMapper(typeof(C))|};", "ServiceCollectionExtensions.AddAutoMapper", "Mapping")]
-    [InlineData("{|#0:services.AddAutoMapper(cfg => { }, typeof(C).Assembly)|};", "ServiceCollectionExtensions.AddAutoMapper", "Mapping")]
-    public async Task ScanningRegistration_Reports(string statement, string api, string package)
+    [InlineData("{|#0:services.Scan(s => s.FromAssemblyOf<C>().AddClasses())|};", "ServiceCollectionExtensions.Scan", InjectHint)]
+    [InlineData("services.AddMediatR(cfg => {|#0:cfg.RegisterServicesFromAssembly(typeof(C).Assembly)|});", "MediatRServiceConfiguration.RegisterServicesFromAssembly", MediatorHint)]
+    [InlineData("services.AddMediatR(cfg => {|#0:cfg.RegisterServicesFromAssemblies(typeof(C).Assembly)|});", "MediatRServiceConfiguration.RegisterServicesFromAssemblies", MediatorHint)]
+    [InlineData("services.AddMediatR(cfg => {|#0:cfg.RegisterServicesFromAssemblyContaining<C>()|});", "MediatRServiceConfiguration.RegisterServicesFromAssemblyContaining", MediatorHint)]
+    [InlineData("services.AddMediatR(cfg => {|#0:cfg.RegisterServicesFromAssemblyContaining(typeof(C))|});", "MediatRServiceConfiguration.RegisterServicesFromAssemblyContaining", MediatorHint)]
+    [InlineData("{|#0:services.AddValidatorsFromAssembly(typeof(C).Assembly)|};", "ServiceCollectionExtensions.AddValidatorsFromAssembly", ValidationHint)]
+    [InlineData("{|#0:services.AddValidatorsFromAssemblies(new[] { typeof(C).Assembly })|};", "ServiceCollectionExtensions.AddValidatorsFromAssemblies", ValidationHint)]
+    [InlineData("{|#0:services.AddValidatorsFromAssemblyContaining<C>()|};", "ServiceCollectionExtensions.AddValidatorsFromAssemblyContaining", ValidationHint)]
+    [InlineData("{|#0:services.AddValidatorsFromAssemblyContaining(typeof(C))|};", "ServiceCollectionExtensions.AddValidatorsFromAssemblyContaining", ValidationHint)]
+    [InlineData("{|#0:services.AddAutoMapper(typeof(C).Assembly)|};", "ServiceCollectionExtensions.AddAutoMapper", MappingHint)]
+    [InlineData("{|#0:services.AddAutoMapper(typeof(C))|};", "ServiceCollectionExtensions.AddAutoMapper", MappingHint)]
+    [InlineData("{|#0:services.AddAutoMapper(cfg => { }, typeof(C).Assembly)|};", "ServiceCollectionExtensions.AddAutoMapper", MappingHint)]
+    public async Task ScanningRegistration_Reports(string statement, string api, string hint)
     {
         await CSharpAnalyzerVerifier<AvoidAssemblyScanningRegistrationAnalyzer>
-            .VerifyAnalyzerAsync(Registration(statement), "net8.0", WithLibraries, Expected(api, package));
+            .VerifyAnalyzerAsync(Registration(statement), "net8.0", WithLibraries, Expected(api, hint));
     }
 
     [Fact]
@@ -94,12 +99,12 @@ public class ZA1710_AvoidAssemblyScanningRegistrationTests
             Registration("{|#0:services.Scan(s => s.FromAssemblyOf<C>().AddClasses())|};"),
             WithLibraries,
             new Dictionary<string, string> { ["TargetFramework"] = "net8.0", ["PublishAot"] = "true" },
-            [Expected("ServiceCollectionExtensions.Scan", "Inject")]);
+            [Expected("ServiceCollectionExtensions.Scan", InjectHint)]);
     }
 
-    // Stands in for a library whose scanning API is trim-annotated: the project is named like
-    // the Scrutor assembly, and the method carries RequiresUnreferencedCode.
-    private const string AnnotatedScrutor = """
+    // Stands in for a library whose scanning API is annotated: the project is named like the
+    // Scrutor assembly, and the annotation sits where the test puts it.
+    private static string AnnotatedScrutor(string typeAnnotation, string methodAnnotation) => $$"""
         namespace System.Diagnostics.CodeAnalysis
         {
             [System.AttributeUsage(System.AttributeTargets.All)]
@@ -107,22 +112,44 @@ public class ZA1710_AvoidAssemblyScanningRegistrationTests
             {
                 public RequiresUnreferencedCodeAttribute(string message) { }
             }
+
+            [System.AttributeUsage(System.AttributeTargets.All)]
+            public sealed class RequiresDynamicCodeAttribute : System.Attribute
+            {
+                public RequiresDynamicCodeAttribute(string message) { }
+            }
         }
 
         namespace Microsoft.Extensions.DependencyInjection
         {
+            {{typeAnnotation}}
             public static class ServiceCollectionExtensions
             {
-                [System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode("x")]
+                {{methodAnnotation}}
                 public static void Scan(this IServiceCollection services, int x) { }
             }
         }
         """;
 
+    private const string Unreferenced = "[System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode(\"x\")]";
+    private const string DynamicCode = "[System.Diagnostics.CodeAnalysis.RequiresDynamicCode(\"x\")]";
+
     [Theory]
-    [InlineData("true", false)]
-    [InlineData("false", true)]
-    public async Task AnnotatedScan_StandsDownOnlyWhenSdkAnalyzerIsOn(string publishAot, bool reports)
+    [InlineData("", Unreferenced, "PublishAot", "true", false)]
+    [InlineData("", Unreferenced, "PublishAot", "false", true)]
+    [InlineData("", Unreferenced, "IsAotCompatible", "true", false)]
+    [InlineData("", Unreferenced, "EnableTrimAnalyzer", "true", false)]
+    [InlineData("", Unreferenced, "PublishTrimmed", "true", false)]
+    [InlineData("", Unreferenced, "IsTrimmable", "true", false)]
+    [InlineData("", Unreferenced, "EnableAotAnalyzer", "true", true)]
+    [InlineData("", DynamicCode, "EnableAotAnalyzer", "true", false)]
+    [InlineData("", DynamicCode, "PublishAot", "true", false)]
+    [InlineData("", DynamicCode, "EnableTrimAnalyzer", "true", true)]
+    [InlineData(DynamicCode, "", "PublishAot", "true", false)]
+    [InlineData(DynamicCode, "", "PublishAot", "false", true)]
+    [InlineData(Unreferenced, "", "PublishAot", "true", false)]
+    public async Task AnnotatedScan_StandsDownOnlyWhenTheMatchingSdkAnalyzerIsOn(
+        string typeAnnotation, string methodAnnotation, string property, string value, bool reports)
     {
         var test = new CSharpAnalyzerTest<AvoidAssemblyScanningRegistrationAnalyzer, DefaultVerifier>
         {
@@ -142,12 +169,53 @@ public class ZA1710_AvoidAssemblyScanningRegistrationTests
         };
 
         // Only the annotated stand-in is referenced, so Scan(1) binds to it and not to Scrutor.
-        test.TestState.AdditionalProjects["Scrutor"].Sources.Add(AnnotatedScrutor);
+        test.TestState.AdditionalProjects["Scrutor"].Sources.Add(AnnotatedScrutor(typeAnnotation, methodAnnotation));
         test.TestState.AdditionalProjectReferences.Add("Scrutor");
-        test.TestState.AnalyzerConfigFiles.Add(("/.globalconfig", $"is_global = true\nbuild_property.PublishAot = {publishAot}\n"));
+        test.TestState.AnalyzerConfigFiles.Add(("/.globalconfig", $"is_global = true\nbuild_property.{property} = {value}\n"));
         if (reports)
-            test.ExpectedDiagnostics.Add(Expected("ServiceCollectionExtensions.Scan", "Inject"));
+            test.ExpectedDiagnostics.Add(Expected("ServiceCollectionExtensions.Scan", InjectHint));
 
         await test.RunAsync();
+    }
+
+    [Fact]
+    public async Task MediatR11_AddMediatRWithType_Reports()
+    {
+        var mediatR11 = ReferenceAssemblies.Net.Net80.AddPackages([
+            new PackageIdentity("MediatR.Extensions.Microsoft.DependencyInjection", "11.1.0")]);
+        await CSharpAnalyzerVerifier<AvoidAssemblyScanningRegistrationAnalyzer>.VerifyAnalyzerAsync(
+            """
+            using MediatR;
+            using Microsoft.Extensions.DependencyInjection;
+
+            class C
+            {
+                void M(IServiceCollection services)
+                {
+                    {|#0:services.AddMediatR(typeof(C))|};
+                }
+            }
+            """,
+            "net8.0", mediatR11, Expected("ServiceCollectionExtensions.AddMediatR", MediatorHint));
+    }
+
+    [Fact]
+    public async Task AutoMapper12_AddAutoMapperWithType_Reports()
+    {
+        var autoMapper12 = ReferenceAssemblies.Net.Net80.AddPackages([
+            new PackageIdentity("AutoMapper.Extensions.Microsoft.DependencyInjection", "12.0.1")]);
+        await CSharpAnalyzerVerifier<AvoidAssemblyScanningRegistrationAnalyzer>.VerifyAnalyzerAsync(
+            """
+            using Microsoft.Extensions.DependencyInjection;
+
+            class C
+            {
+                void M(IServiceCollection services)
+                {
+                    {|#0:services.AddAutoMapper(typeof(C))|};
+                }
+            }
+            """,
+            "net8.0", autoMapper12, Expected("ServiceCollectionExtensions.AddAutoMapper", MappingHint));
     }
 }

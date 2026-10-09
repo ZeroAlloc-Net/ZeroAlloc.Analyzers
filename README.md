@@ -47,9 +47,9 @@ Roslyn analyzers run incrementally; on a warmed-up build only changed files are 
 
 | Scenario | Rules active | Typical first-build overhead | Incremental overhead |
 |---|---|---|---|
-| `netstandard2.0` single-TFM | 41 of 64, or 43 with the System.Memory package | ~120 ms | ~10 ms |
+| `netstandard2.0` single-TFM | 41 of 64, or 44 with the System.Memory and assembly-scanning library packages | ~120 ms | ~10 ms |
 | `net8.0` single-TFM | 59 of 64, or 62 with the Configuration.Binder, Options and assembly-scanning library packages | ~200 ms | ~15 ms |
-| `net8.0` + `netstandard2.0` multi-TFM | 59 / 41 per TFM, or 62 / 43 with the Configuration.Binder, Options, assembly-scanning library and System.Memory packages | ~350 ms | ~25 ms |
+| `net8.0` + `netstandard2.0` multi-TFM | 59 / 41 per TFM, or 62 / 44 with the Configuration.Binder, Options, assembly-scanning library and System.Memory packages | ~350 ms | ~25 ms |
 | `net8.0`, data-flow rules disabled (ZA0607, ZA0502) | 57 of 64 | ~160 ms | ~10 ms |
 
 A rule counts as active when it can report with no extra packages at the target's default language version. ZA1707 and ZA1708 need the Microsoft.Extensions.Configuration.Binder and Microsoft.Extensions.Options packages. They do not run on `netstandard2.0` even with those packages, because its default C# 7.3 is below their C# 12 and C# 8 gates.

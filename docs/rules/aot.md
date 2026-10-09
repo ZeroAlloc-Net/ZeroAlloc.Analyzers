@@ -12,7 +12,7 @@ Native AOT compiles your app to native code ahead of time, with no JIT at runtim
 
 ## Relationship to the SDK's own AOT analyzer
 
-When a project sets `<PublishAot>true</PublishAot>` or `<IsAotCompatible>true</IsAotCompatible>`, the .NET SDK enables the official AOT analyzer (`IL3050`+) and trimming analyzer (`IL2xxx`), which authoritatively cover these patterns. To avoid double-reporting, **every ZA17xx rule automatically stands down when that opt-in is detected** (via the `PublishAot`, `IsAotCompatible`, or `EnableAotAnalyzer` MSBuild properties).
+When a project sets `<PublishAot>true</PublishAot>` or `<IsAotCompatible>true</IsAotCompatible>`, the .NET SDK enables the official AOT analyzer (`IL3050`+) and trimming analyzer (`IL2xxx`), which authoritatively cover these patterns. To avoid double-reporting, **every ZA17xx rule automatically stands down when that opt-in is detected** (via the `PublishAot`, `IsAotCompatible`, or `EnableAotAnalyzer` MSBuild properties). The one exception is ZA1710, which stands down per call and only for scanning APIs that are trim- or AOT-annotated; see [ZA1710](#za1710).
 
 The value ZA17xx adds is for the **common case where you have not opted in yet** — for example a library that has not set `IsAotCompatible`. There the SDK analyzers are silent, and these rules surface AOT hazards early so the eventual move to AOT is smaller.
 
@@ -280,9 +280,9 @@ string name = response.User.Name;
 
 Scrutor's `Scan`, MediatR's `RegisterServicesFromAssembly*`, FluentValidation's `AddValidatorsFromAssembly*` and AutoMapper's `AddAutoMapper` with an assembly or type argument all find the types to register by walking an assembly with reflection at start-up. Trimming removes the types nobody references by name, so the scan finds fewer than it did in debug, and Native AOT cannot enumerate and instantiate them at all. The scan also costs start-up time on every launch.
 
-The rule recognises Scrutor, MediatR, FluentValidation and AutoMapper, and matches on the assembly that declares the called method and on the method's name, so it keeps working across their major versions. The message names the ZeroAlloc package that registers the same types with a source generator: Inject for Scrutor, Mediator for MediatR, Validation for FluentValidation and Mapping for AutoMapper. Overloads that take only a configuration delegate, such as `AddAutoMapper(cfg => { })`, scan nothing and are not reported. MediatR 12's `AddMediatR(cfg => ...)` is not reported itself, but each `RegisterServicesFrom*` call inside it is.
+The rule recognises Scrutor, MediatR, FluentValidation and AutoMapper, and matches on the assembly that declares the called method and on the method's name, so it keeps working across their major versions. The message ends with advice that differs per library, because the ZeroAlloc replacements work differently. For Scrutor, ZeroAlloc.Inject registers services at compile time with a source generator. For MediatR, ZeroAlloc.Mediator dispatches without reflection, but its generated `AddMediator()` registers only `IMediator`, so the handlers are registered with ZeroAlloc.Inject. For FluentValidation, ZeroAlloc.Validation registers validators at compile time. For AutoMapper, ZeroAlloc.Mapping generates static mappers, so no registration is needed. Overloads that take only a configuration delegate, such as `AddAutoMapper(cfg => { })`, scan nothing and are not reported. MediatR 12's `AddMediatR(cfg => ...)` is not reported itself, but each `RegisterServicesFrom*` call inside it is.
 
-Unlike the other ZA17xx rules, this one stays on when the SDK's AOT analyzer is enabled, because these libraries are not trim-annotated and the SDK says nothing about their scanning calls. It stands down for a call only when the SDK analyzer is on and the called method, or its containing type, carries `RequiresUnreferencedCode` or `RequiresDynamicCode`, since the SDK reports that call already.
+Unlike the other ZA17xx rules, this one stays on when the SDK's AOT analyzer is enabled, because these libraries are not trim-annotated and the SDK says nothing about their scanning calls. It stands down for a call only when the called method, or its containing type, carries `RequiresUnreferencedCode` and the SDK's trim analyzer is on (`PublishAot`, `IsAotCompatible`, `EnableTrimAnalyzer`, `PublishTrimmed` or `IsTrimmable`), or carries `RequiresDynamicCode` and the SDK's AOT analyzer is on (`PublishAot`, `IsAotCompatible` or `EnableAotAnalyzer`), since the SDK reports that call already.
 
 ### Before
 
@@ -297,13 +297,16 @@ builder.Services.AddAutoMapper(typeof(Program).Assembly);                     //
 ### After
 
 ```csharp
-// ✓ each package generates its registrations at compile time
-builder.Services.AddMediator();            // ZeroAlloc.Mediator: handlers found by the source generator
+// ✓ handlers and services are marked, and the generated methods register them
+[Transient]
+public class CreateOrderHandler : IRequestHandler<CreateOrder, OrderId> { /* ... */ }
+
+builder.Services.AddMediator();            // ZeroAlloc.Mediator: registers IMediator only
+builder.Services.AddMyAppServices();       // ZeroAlloc.Inject: registers the marked handlers and services
 builder.Services.AddZeroAllocValidators(); // ZeroAlloc.Validation.Inject: validators found by the source generator
-// ZeroAlloc.Mapping: mappers are declared with [Map<TSrc, TDst>] and generated, so no registration scan is needed
 ```
 
-For Scrutor, mark each service with `[Transient]`, `[Scoped]` or `[Singleton]` from ZeroAlloc.Inject and call the generated `Add<Assembly>Services()` method.
+`AddMyAppServices()` is the method ZeroAlloc.Inject generates from the assembly name, so `MyApp` gives `AddMyAppServices()`. For Scrutor, mark each service with `[Transient]`, `[Scoped]` or `[Singleton]` the same way. ZeroAlloc.Mapping replaces AutoMapper's `IMapper` with static mapper calls: declare `[Map<OrderRequest, Order>]` on a `static partial class` and call the generated `Map` method directly, so nothing is registered.
 
 ### Suppression
 

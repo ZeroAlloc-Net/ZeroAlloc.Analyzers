@@ -287,7 +287,7 @@ The tables below list all 64 rules grouped by category. Rule IDs link to the cor
 | [ZA1709](rules/aot.md#za1709) | Avoid dynamic dispatch | Info | Any |
 | [ZA1710](rules/aot.md#za1710) | Avoid assembly-scanning registration | Info | Any |
 
-> `ZA1705` (avoid resolving types or assemblies by name) is disabled by default — see [Native AOT rules](rules/aot.md#za1705) to opt in. All ZA17xx rules stand down automatically when the SDK's own AOT analyzer is enabled.
+> `ZA1705` (avoid resolving types or assemblies by name) is disabled by default — see [Native AOT rules](rules/aot.md#za1705) to opt in. All ZA17xx rules stand down automatically when the SDK's own AOT analyzer is enabled, except ZA1710, which stands down per call and only for scanning APIs that are trim- or AOT-annotated.
 
 ---
 

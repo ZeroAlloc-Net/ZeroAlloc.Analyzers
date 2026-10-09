@@ -19,7 +19,7 @@ public sealed class AvoidAssemblyScanningRegistrationAnalyzer : DiagnosticAnalyz
     private static readonly DiagnosticDescriptor Rule = new(
         DiagnosticIds.AvoidAssemblyScanningRegistration,
         "Avoid assembly-scanning registration",
-        "'{0}' registers types by scanning assemblies with reflection, which trimming and Native AOT break; ZeroAlloc.{1} registers them with a source generator instead",
+        "'{0}' registers types by scanning assemblies with reflection, which trimming and Native AOT break; {1}",
         DiagnosticCategories.Aot,
         DiagnosticSeverity.Info,
         isEnabledByDefault: true);
@@ -27,22 +27,29 @@ public sealed class AvoidAssemblyScanningRegistrationAnalyzer : DiagnosticAnalyz
     private static readonly string[] MediatRAssemblies = ["MediatR", "MediatR.Extensions.Microsoft.DependencyInjection"];
     private static readonly string[] AutoMapperAssemblies = ["AutoMapper", "AutoMapper.Extensions.Microsoft.DependencyInjection"];
 
+    private const string InjectHint = "ZeroAlloc.Inject registers services at compile time with a source generator";
+    private const string MediatorHint = "ZeroAlloc.Mediator dispatches without reflection; register its handlers with ZeroAlloc.Inject";
+    private const string ValidationHint = "ZeroAlloc.Validation registers validators at compile time with a source generator";
+    private const string MappingHint = "ZeroAlloc.Mapping generates mappers at compile time, with no registration needed";
+
     // The one place to add a library. OnlyWithAssemblyOrTypeParameter limits a method to the
-    // overloads that take an assembly or a type, leaving the config-only overloads alone.
-    private static readonly (string[] Assemblies, string[] Methods, bool OnlyWithAssemblyOrTypeParameter, string Package)[] ScanningApis =
+    // overloads that take an assembly or a type, leaving the config-only overloads alone. The hint
+    // is the message's advice, which differs per package because the replacements work differently.
+    private static readonly (string[] Assemblies, string[] Methods, bool OnlyWithAssemblyOrTypeParameter, string Hint)[] ScanningApis =
     [
-        (["Scrutor"], ["Scan"], false, "Inject"),
+        (["Scrutor"], ["Scan"], false, InjectHint),
         (MediatRAssemblies,
             ["RegisterServicesFromAssembly", "RegisterServicesFromAssemblies", "RegisterServicesFromAssemblyContaining"],
-            false, "Mediator"),
-        (MediatRAssemblies, ["AddMediatR"], true, "Mediator"),
+            false, MediatorHint),
+        (MediatRAssemblies, ["AddMediatR"], true, MediatorHint),
         (["FluentValidation.DependencyInjectionExtensions"],
             ["AddValidatorsFromAssembly", "AddValidatorsFromAssemblies", "AddValidatorsFromAssemblyContaining"],
-            false, "Validation"),
-        (AutoMapperAssemblies, ["AddAutoMapper"], true, "Mapping"),
+            false, ValidationHint),
+        (AutoMapperAssemblies, ["AddAutoMapper"], true, MappingHint),
     ];
 
-    private static readonly string[] TrimAnnotations = ["RequiresUnreferencedCodeAttribute", "RequiresDynamicCodeAttribute"];
+    private const string RequiresUnreferencedCode = "RequiresUnreferencedCodeAttribute";
+    private const string RequiresDynamicCode = "RequiresDynamicCodeAttribute";
 
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => [Rule];
 
@@ -52,21 +59,24 @@ public sealed class AvoidAssemblyScanningRegistrationAnalyzer : DiagnosticAnalyz
         context.EnableConcurrentExecution();
         context.RegisterCompilationStartAction(static start =>
         {
-            var sdkAnalyzerOn = AotHelper.IsSdkAotAnalyzerEnabled(start.Options);
+            // IL2026 comes from the trim analyzer and IL3050 from the AOT analyzer, and
+            // EnableAotAnalyzer alone turns on only the second, so each is tracked on its own.
+            var trimAnalyzerOn = AotHelper.IsSdkTrimAnalyzerEnabled(start.Options);
+            var aotAnalyzerOn = AotHelper.IsSdkAotAnalyzerEnabled(start.Options);
             start.RegisterOperationAction(
-                context => AnalyzeInvocation(context, sdkAnalyzerOn),
+                context => AnalyzeInvocation(context, trimAnalyzerOn, aotAnalyzerOn),
                 OperationKind.Invocation);
         });
     }
 
-    private static void AnalyzeInvocation(OperationAnalysisContext context, bool sdkAnalyzerOn)
+    private static void AnalyzeInvocation(OperationAnalysisContext context, bool trimAnalyzerOn, bool aotAnalyzerOn)
     {
         var method = ((IInvocationOperation)context.Operation).TargetMethod;
         var assemblyName = method.ContainingAssembly?.Identity.Name;
         if (assemblyName is null)
             return;
 
-        foreach (var (assemblies, methods, onlyWithAssemblyOrTypeParameter, package) in ScanningApis)
+        foreach (var (assemblies, methods, onlyWithAssemblyOrTypeParameter, hint) in ScanningApis)
         {
             if (Array.IndexOf(methods, method.Name) < 0 || Array.IndexOf(assemblies, assemblyName) < 0)
                 continue;
@@ -75,14 +85,17 @@ public sealed class AvoidAssemblyScanningRegistrationAnalyzer : DiagnosticAnalyz
                 continue;
 
             // The SDK's own analyzer reports annotated APIs, so reporting them as well would double up.
-            if (sdkAnalyzerOn && IsTrimAnnotated(method))
+            if ((trimAnalyzerOn && HasAnnotation(method, RequiresUnreferencedCode))
+                || (aotAnalyzerOn && HasAnnotation(method, RequiresDynamicCode)))
+            {
                 return;
+            }
 
             context.ReportDiagnostic(Diagnostic.Create(
                 Rule,
                 context.Operation.Syntax.GetLocation(),
                 $"{method.ContainingType.Name}.{method.Name}",
-                package));
+                hint));
             return;
         }
     }
@@ -129,18 +142,18 @@ public sealed class AvoidAssemblyScanningRegistrationAnalyzer : DiagnosticAnalyz
         return ns is { IsGlobalNamespace: true };
     }
 
-    private static bool IsTrimAnnotated(IMethodSymbol method)
-        => HasTrimAnnotation(method.GetAttributes())
-            || HasTrimAnnotation(method.ContainingType.GetAttributes());
+    private static bool HasAnnotation(IMethodSymbol method, string attributeName)
+        => HasAttribute(method.GetAttributes(), attributeName)
+            || HasAttribute(method.ContainingType.GetAttributes(), attributeName);
 
     // Compared by name so the attribute types need not resolve in the compilation.
-    private static bool HasTrimAnnotation(ImmutableArray<AttributeData> attributes)
+    private static bool HasAttribute(ImmutableArray<AttributeData> attributes, string attributeName)
     {
         foreach (var attribute in attributes)
         {
             var attributeClass = attribute.AttributeClass;
             if (attributeClass is not null
-                && Array.IndexOf(TrimAnnotations, attributeClass.Name) >= 0
+                && attributeClass.Name == attributeName
                 && IsNamespace(attributeClass, "System", "Diagnostics", "CodeAnalysis"))
             {
                 return true;
