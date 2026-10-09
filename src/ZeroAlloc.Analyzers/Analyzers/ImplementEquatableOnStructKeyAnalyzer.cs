@@ -51,6 +51,7 @@ public sealed class ImplementEquatableOnStructKeyAnalyzer : DiagnosticAnalyzer
                 start.Compilation.Assembly,
                 equatable,
                 comparer,
+                start.Compilation.GetTypeByMetadataName("System.Collections.Generic.EqualityComparer`1"),
                 Resolve(start.Compilation, CollectionTypeNames),
                 Resolve(start.Compilation, FactoryTypeNames));
 
@@ -130,6 +131,7 @@ public sealed class ImplementEquatableOnStructKeyAnalyzer : DiagnosticAnalyzer
         IAssemblySymbol assembly,
         INamedTypeSymbol equatable,
         INamedTypeSymbol comparer,
+        INamedTypeSymbol? defaultComparer,
         ImmutableArray<INamedTypeSymbol> collections,
         ImmutableArray<INamedTypeSymbol> factories)
     {
@@ -140,12 +142,23 @@ public sealed class ImplementEquatableOnStructKeyAnalyzer : DiagnosticAnalyzer
         public ImmutableArray<INamedTypeSymbol> Factories { get; } = factories;
 
         // ToFrozenSet and ToFrozenDictionary take an optional comparer, so the parameter alone proves
-        // nothing: a comparer counts only when an argument actually supplies a non-null one.
+        // nothing: a comparer counts only when an argument actually supplies a non-null one. Passing
+        // EqualityComparer<T>.Default is the same as passing null: it is the comparer that boxes.
         public bool PassesComparer(ImmutableArray<IArgumentOperation> arguments) =>
             arguments.Any(a => a.ArgumentKind != ArgumentKind.DefaultValue
                 && a.Parameter?.Type is INamedTypeSymbol named
                 && SymbolEqualityComparer.Default.Equals(named.OriginalDefinition, comparer)
-                && a.Value.ConstantValue is not { HasValue: true, Value: null });
+                && a.Value.ConstantValue is not { HasValue: true, Value: null }
+                && !IsDefaultComparer(a.Value));
+
+        private bool IsDefaultComparer(IOperation value)
+        {
+            while (value is IConversionOperation conversion)
+                value = conversion.Operand;
+
+            return value is IPropertyReferenceOperation { Property: { IsStatic: true, Name: "Default" } property }
+                && SymbolEqualityComparer.Default.Equals(property.ContainingType.OriginalDefinition, defaultComparer);
+        }
 
         public bool ImplementsEquatable(INamedTypeSymbol type) =>
             type.AllInterfaces.Any(i => SymbolEqualityComparer.Default.Equals(i.OriginalDefinition, equatable)
