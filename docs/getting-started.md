@@ -262,6 +262,7 @@ The tables below list all 57 rules grouped by category. Rule IDs link to the cor
 |---------|-------|----------|---------|
 | [ZA1501](rules/value-types.md#za1501) | Override GetHashCode on struct keys | Info | Any |
 | [ZA1502](rules/value-types.md#za1502) | Avoid finalizers, use IDisposable | Info | Any |
+| [ZA1503](rules/value-types.md#za1503) | Implement IEquatable\<T\> on structs used as hash keys | Info | Any |
 
 ### Data Layout (ZA16xx)
 

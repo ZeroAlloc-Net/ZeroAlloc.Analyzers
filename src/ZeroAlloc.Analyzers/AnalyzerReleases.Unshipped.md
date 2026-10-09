@@ -12,3 +12,4 @@ ZA0111  | Performance.Collections | Info     | AvoidConcurrentDictionarySnapshot
 ZA0212  | Performance.Strings     | Info     | UseTryParseAnalyzer
 ZA0211  | Performance.Strings     | Info     | UseSpanSplitAnalyzer
 ZA0110  | Performance.Collections | Info     | PreferParamsSpanAnalyzer
+ZA1503  | Performance.ValueTypes  | Info     | ImplementEquatableOnStructKeyAnalyzer
