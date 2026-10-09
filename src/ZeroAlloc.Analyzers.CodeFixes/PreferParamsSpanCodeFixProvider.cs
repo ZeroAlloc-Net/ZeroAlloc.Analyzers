@@ -51,8 +51,13 @@ public sealed class PreferParamsSpanCodeFixProvider : CodeFixProvider
 
         // The element type of a jagged array keeps its inner brackets.
         var elementType = arraySymbol.ElementType.ToMinimalDisplayString(model, parameter.SpanStart);
-        var spanType = SyntaxFactory.ParseTypeName($"ReadOnlySpan<{elementType}>").WithTriviaFrom(parameter.Type);
-        var newRoot = root.ReplaceNode(parameter, parameter.WithType(spanType));
-        return document.WithSyntaxRoot(UsingDirectives.EnsureSystem(newRoot));
+        var readOnlySpan = model.Compilation.GetTypeByMetadataName("System.ReadOnlySpan`1");
+        if (readOnlySpan is null)
+            return document;
+
+        var spanType = ImportedTypeSyntax
+            .For(document, readOnlySpan, arraySymbol.ElementType, SyntaxFactory.ParseTypeName(elementType))
+            .WithTriviaFrom(parameter.Type);
+        return document.WithSyntaxRoot(root.ReplaceNode(parameter, parameter.WithType(spanType)));
     }
 }

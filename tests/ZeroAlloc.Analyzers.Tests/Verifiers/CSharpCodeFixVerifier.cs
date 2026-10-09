@@ -75,4 +75,38 @@ public static class CSharpCodeFixVerifier<TAnalyzer, TCodeFix>
         test.ExpectedDiagnostics.Add(expected);
         await test.RunAsync();
     }
+
+    /// <summary>Verifies a fix in the first document while the others stay unchanged.</summary>
+    public static async Task VerifyCodeFixWithOtherDocumentsAsync(
+        string source,
+        string fixedSource,
+        DiagnosticResult expected,
+        string[] otherDocuments,
+        bool compilationEndDiagnostic = false)
+    {
+        var test = new CSharpCodeFixTest<TAnalyzer, TCodeFix, DefaultVerifier>
+        {
+            TestCode = source,
+            FixedCode = fixedSource,
+            ReferenceAssemblies = ReferenceAssemblies.Net.Net80,
+        };
+
+        if (compilationEndDiagnostic)
+            test.CodeFixTestBehaviors |= CodeFixTestBehaviors.SkipLocalDiagnosticCheck;
+
+        for (var i = 0; i < otherDocuments.Length; i++)
+        {
+            test.TestState.Sources.Add(($"/0/Other{i}.cs", otherDocuments[i]));
+            test.FixedState.Sources.Add(($"/0/Other{i}.cs", otherDocuments[i]));
+        }
+
+        test.TestState.AnalyzerConfigFiles.Add(
+            ("/.globalconfig", """
+                is_global = true
+                build_property.TargetFramework = net8.0
+                """));
+
+        test.ExpectedDiagnostics.Add(expected);
+        await test.RunAsync();
+    }
 }

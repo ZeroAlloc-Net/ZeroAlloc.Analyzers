@@ -255,6 +255,32 @@ public class ZA0304_UseReadOnlySpanForConstantTableTests
     }
 
     [Fact]
+    public async Task GlobalUsingSystemInOtherFile_FixAddsNoUsing()
+    {
+        var source = """
+            class C
+            {
+                private static readonly byte[] {|#0:Table|} = { 1, 2, 3 };
+
+                int M(int i) => Table[i];
+            }
+            """;
+
+        var fixedSource = """
+            class C
+            {
+                private static ReadOnlySpan<byte> Table => [1, 2, 3];
+
+                int M(int i) => Table[i];
+            }
+            """;
+
+        await CSharpCodeFixVerifier<UseReadOnlySpanForConstantTableAnalyzer, UseReadOnlySpanForConstantTableCodeFixProvider>
+            .VerifyCodeFixWithOtherDocumentsAsync(
+                source, fixedSource, Expected("Table", "byte"), ["global using System;"], compilationEndDiagnostic: true);
+    }
+
+    [Fact]
     public async Task TableOnCSharp10_FixEmitsArrayCreation()
     {
         var source = """

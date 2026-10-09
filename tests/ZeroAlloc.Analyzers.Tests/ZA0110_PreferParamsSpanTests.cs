@@ -243,6 +243,86 @@ public class ZA0110_PreferParamsSpanTests
     }
 
     [Fact]
+    public async Task GlobalUsingSystemInOtherFile_FixAddsNoUsing()
+    {
+        var source = """
+            class C
+            {
+                static int Sum(params int[] {|#0:values|}) => values.Length;
+            }
+            """;
+
+        var fixedSource = """
+            class C
+            {
+                static int Sum(params ReadOnlySpan<int> values) => values.Length;
+            }
+            """;
+
+        await CSharpCodeFixVerifier<PreferParamsSpanAnalyzer, PreferParamsSpanCodeFixProvider>
+            .VerifyCodeFixWithOtherDocumentsAsync(
+                source, fixedSource, Expected("Sum"), ["global using System;"], compilationEndDiagnostic: true);
+    }
+
+    [Fact]
+    public async Task UsingSystemInsideNamespace_FixAddsNoUsing()
+    {
+        var source = """
+            namespace N
+            {
+                using System;
+
+                class C
+                {
+                    static int Sum(params int[] {|#0:values|}) => values.Length;
+                }
+            }
+            """;
+
+        var fixedSource = """
+            namespace N
+            {
+                using System;
+
+                class C
+                {
+                    static int Sum(params ReadOnlySpan<int> values) => values.Length;
+                }
+            }
+            """;
+
+        await CSharpCodeFixVerifier<PreferParamsSpanAnalyzer, PreferParamsSpanCodeFixProvider>
+            .VerifyCodeFixAsync(source, fixedSource, Expected("Sum"), compilationEndDiagnostic: true);
+    }
+
+    [Fact]
+    public async Task OnlyAnAliasOfSystem_FixKeepsTypeResolvable()
+    {
+        // An alias is not an import of the namespace, so ReadOnlySpan alone would not resolve.
+        var source = """
+            using S = System;
+
+            class C
+            {
+                static int Sum(params int[] {|#0:values|}) => values.Length;
+            }
+            """;
+
+        var fixedSource = """
+            using System;
+            using S = System;
+
+            class C
+            {
+                static int Sum(params ReadOnlySpan<int> values) => values.Length;
+            }
+            """;
+
+        await CSharpCodeFixVerifier<PreferParamsSpanAnalyzer, PreferParamsSpanCodeFixProvider>
+            .VerifyCodeFixAsync(source, fixedSource, Expected("Sum"), compilationEndDiagnostic: true);
+    }
+
+    [Fact]
     public async Task GenericMethod_ReportsAndFixes()
     {
         var source = """

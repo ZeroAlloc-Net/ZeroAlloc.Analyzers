@@ -62,8 +62,14 @@ public sealed class UseReadOnlySpanForConstantTableCodeFixProvider : CodeFixProv
         CancellationToken ct)
     {
         var root = await document.GetSyntaxRootAsync(ct);
-        if (root is null)
+        var model = await document.GetSemanticModelAsync(ct);
+        var readOnlySpan = model?.Compilation.GetTypeByMetadataName("System.ReadOnlySpan`1");
+        if (root is null
+            || readOnlySpan is null
+            || model?.GetDeclaredSymbol(declarator, ct) is not IFieldSymbol { Type: IArrayTypeSymbol arraySymbol })
+        {
             return document;
+        }
 
         var modifiers = string.Join(" ", field.Modifiers
             .Where(m => !m.IsKind(SyntaxKind.ReadOnlyKeyword))
@@ -84,10 +90,15 @@ public sealed class UseReadOnlySpanForConstantTableCodeFixProvider : CodeFixProv
             ? $"[{inner}]"
             : singleLine ? $"new {elementType}[] {{ {inner} }}" : $"new {elementType}[] {{{inner}}}";
 
-        var property = SyntaxFactory.ParseMemberDeclaration(
-            $"{modifiers} ReadOnlySpan<{elementType}> {declarator.Identifier.Text} => {value};")!
-            .WithTriviaFrom(field);
+        var property = (PropertyDeclarationSyntax)SyntaxFactory.ParseMemberDeclaration(
+            $"{modifiers} ReadOnlySpan<{elementType}> {declarator.Identifier.Text} => {value};")!;
 
-        return document.WithSyntaxRoot(UsingDirectives.EnsureSystem(root.ReplaceNode(field, property)));
+        // Import System where it is not in scope.
+        var spanType = ImportedTypeSyntax
+            .For(document, readOnlySpan, arraySymbol.ElementType, arrayType.ElementType.WithoutTrivia())
+            .WithTriviaFrom(property.Type);
+        property = property.WithType(spanType).WithTriviaFrom(field);
+
+        return document.WithSyntaxRoot(root.ReplaceNode(field, property));
     }
 }

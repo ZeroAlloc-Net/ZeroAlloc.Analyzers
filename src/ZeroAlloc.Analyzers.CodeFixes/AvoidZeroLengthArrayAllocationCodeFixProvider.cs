@@ -46,14 +46,20 @@ public sealed class AvoidZeroLengthArrayAllocationCodeFixProvider : CodeFixProvi
 
         var elementType = arrayType.ElementType.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat);
 
-        // Build: Array.Empty<T>()
-        var arrayEmptyCall = SyntaxFactory.ParseExpression($"Array.Empty<{elementType}>()")
+        // Build: Array.Empty<T>(), importing System where it is not in scope.
+        var arrayEmptyCall = SyntaxFactory.InvocationExpression(
+                SyntaxFactory.MemberAccessExpression(
+                    SyntaxKind.SimpleMemberAccessExpression,
+                    ImportedTypeSyntax.For(document, semanticModel.Compilation.GetSpecialType(SpecialType.System_Array)),
+                    SyntaxFactory.GenericName(
+                        SyntaxFactory.Identifier("Empty"),
+                        SyntaxFactory.TypeArgumentList(
+                            SyntaxFactory.SingletonSeparatedList(SyntaxFactory.ParseTypeName(elementType))))))
             .WithTriviaFrom(arrayCreation);
 
         var root = await document.GetSyntaxRootAsync(ct);
         if (root is null) return document;
 
-        var newRoot = UsingDirectives.EnsureSystem(root.ReplaceNode(arrayCreation, arrayEmptyCall));
-        return document.WithSyntaxRoot(newRoot);
+        return document.WithSyntaxRoot(root.ReplaceNode(arrayCreation, arrayEmptyCall));
     }
 }
