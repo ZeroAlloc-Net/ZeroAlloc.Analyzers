@@ -440,7 +440,7 @@ public class LegacyResource
 
 `Dictionary`, `HashSet` and `ConcurrentDictionary` compare keys through `EqualityComparer<T>.Default`. For a struct that does not implement `IEquatable<T>`, that comparer falls back to `Equals(object)`, which boxes the key on every lookup, insert and remove. Implementing `IEquatable<T>` gives the comparer a strongly typed `Equals` that does not allocate. [ZA1501](#za1501) covers the `GetHashCode` half of the same problem.
 
-The rule reports a hashed collection, or a `ToDictionary`, `ToHashSet`, `ToFrozenDictionary` or `ToFrozenSet` call, keyed on a struct from your own code that lacks `IEquatable<T>`, when no `IEqualityComparer<T>` is passed. Record structs already implement it, and enums and primitives have a non-boxing comparer. Immutable and sorted collections (`ImmutableDictionary`, `ImmutableHashSet`, `SortedSet`, `SortedDictionary`) are not covered.
+The rule reports a hashed collection, or a `ToDictionary`, `ToHashSet`, `ToFrozenDictionary` or `ToFrozenSet` call, keyed on a struct from your own code that lacks `IEquatable<T>`, when no `IEqualityComparer<T>` is passed; passing `EqualityComparer<T>.Default` counts as passing none, because that is the comparer that boxes. Record structs already implement it, and enums and primitives have a non-boxing comparer. `ImmutableDictionary` and `ImmutableHashSet` are not covered, and neither are the LINQ hashing operators `Distinct`, `GroupBy`, `ToLookup`, `Union`, `Intersect` and `Except`.
 
 ### Before
 

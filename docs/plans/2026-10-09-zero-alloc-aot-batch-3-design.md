@@ -28,7 +28,7 @@ A 14th idea is out of scope here: flagging assembly-scanning registration and po
 | ZA0212 | `UseTryParse` | Performance.Strings | Info | No |
 | ZA0303 | `ReturnRentedArray` | Performance.Memory | Warning | No |
 | ZA0304 | `UseReadOnlySpanForConstantTable` | Performance.Memory | Info | Yes |
-| ZA1402 | `UseStatePassingOverload` | Performance.Delegates | Info | Single captured local or parameter |
+| ZA1402 | `UseStatePassingOverload` | Performance.Delegates | Info | GetOrAdd and QueueUserWorkItem only |
 | ZA1503 | `ImplementEquatableOnStructKey` | Performance.ValueTypes | Info | No |
 | ZA1706 | `MarkLibraryAotCompatible` | Performance.Aot | Info | No |
 | ZA1707 | `UseConfigurationBindingGenerator` | Performance.Aot | Info | No |
@@ -151,21 +151,21 @@ Reported from a compilation-end action, because the check needs every use of the
    - `ConcurrentDictionary<,>.GetOrAdd` and `AddOrUpdate`
    - `CancellationToken.Register` and `UnsafeRegister`
    - `ThreadPool.QueueUserWorkItem` and `UnsafeQueueUserWorkItem`
-   - `TaskFactory.StartNew`
+   - `TaskFactory.StartNew` and `TaskFactory<TResult>.StartNew`
    - `string.Create`, where the call already has a state parameter that the lambda bypasses
 3. The state-passing overload exists in the compilation.
 
 Inside a loop the same lambda is also reported by ZA0502; ZA1402 gives the API-specific fix.
 
-Only lambdas passed to the API's callback parameter are reported (valueFactory; addValueFactory and updateValueFactory; callback; callBack; action and function; action). A lambda stored as a dictionary value is not. `const` locals are not captures. A primary-constructor parameter used outside the constructor counts as capturing `this`.
+Only lambdas passed to the API's callback parameter are reported (valueFactory; addValueFactory and updateValueFactory; callback; callBack; action and function; action). A lambda stored as a dictionary value is not. `const` locals are not captures. A primary-constructor parameter used outside the constructor counts as capturing `this`. A call to a non-static local function, or a method group of one, counts what that local function captures; its body is walked too, with a visited set against recursion.
 
 The API list lives in one table in the analyzer, so adding an API is a one-line change.
 
 **Message:** `"Lambda passed to '{0}' captures {1}; use the overload that passes state so the lambda can be static"`
 
-**Code fix:** Offered for ConcurrentDictionary.GetOrAdd and ThreadPool.QueueUserWorkItem/UnsafeQueueUserWorkItem, whose state is typed. It requires exactly one captured local or parameter, with no this, no ref local and no ref or out parameter; the captured variable is never written in its declaring body; the lambda is implicitly typed; and for QueueUserWorkItem, the lambda does not use its own parameter. QueueUserWorkItem is rewritten to the generic overload with preferLocal: false. Object-state APIs, AddOrUpdate and string.Create get the diagnostic only.
+**Code fix:** Offered for ConcurrentDictionary.GetOrAdd and ThreadPool.QueueUserWorkItem, whose state is typed. It requires exactly one captured local or parameter, with no this, no ref local and no ref or out parameter; the captured variable is never written in its declaring body; the lambda is implicitly typed; and for QueueUserWorkItem, the lambda does not use its own parameter. QueueUserWorkItem is rewritten to the generic overload with preferLocal: false. Object-state APIs, AddOrUpdate and string.Create get the diagnostic only.
 
-The fix also needs C# 9 or later. It is withheld when the lambda calls a non-static local function, when the captured variable is a mutable struct (not readonly, not enum, not a primitive), or when the variable is taken by reference anywhere in its body. It keeps `async`, attributes and trivia, and names the new arguments when the call uses named arguments. UnsafeQueueUserWorkItem is diagnostic-only, because its only callback overload takes an object state.
+The fix also needs C# 9 or later. It is withheld when the lambda calls a non-static local function, when the captured variable is a mutable struct (not readonly, not enum, not a primitive), when its type is `dynamic` or a pointer, or when the variable is taken by reference anywhere in its body. It keeps `async`, attributes and trivia, and names the new arguments when the call uses named arguments, and escapes a keyword-named variable as `@name`. UnsafeQueueUserWorkItem is diagnostic-only: a generic `UnsafeQueueUserWorkItem<TState>` overload does exist, but its WaitCallback form already takes a state argument, which a fix would have to drop or merge.
 
 ### ZA1503 — `ImplementEquatableOnStructKey`
 
@@ -183,7 +183,7 @@ Record structs and enums are not reported.
 
 A call counts as passing a comparer only when an argument supplies a non-null IEqualityComparer<T>; an optional comparer parameter left at its default does not count. Collection expressions are not covered.
 
-`Nullable<T>` keys are unwrapped, so `Dictionary<Point?, int>` reports `Point`. Immutable and sorted collections (ImmutableDictionary, ImmutableHashSet, SortedSet, SortedDictionary) are not covered.
+`Nullable<T>` keys are unwrapped, so `Dictionary<Point?, int>` reports `Point`. Passing `EqualityComparer<T>.Default` counts as passing no comparer, because it is the comparer that boxes. Not covered: ImmutableDictionary and ImmutableHashSet, and the LINQ hashing operators (Distinct, GroupBy, ToLookup, Union, Intersect, Except). SortedSet and SortedDictionary are not hashed collections.
 
 **Location:** the creation or call site. The message names the struct.
 
