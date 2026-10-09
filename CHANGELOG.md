@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.5.6](https://github.com/ZeroAlloc-Net/ZeroAlloc.Analyzers/compare/v1.5.5...v1.5.6) (2026-10-09)
+
+
+### Documentation
+
+* design batch 3 zero-alloc and NativeAOT analyzer rules ([#87](https://github.com/ZeroAlloc-Net/ZeroAlloc.Analyzers/issues/87)) ([6a791c5](https://github.com/ZeroAlloc-Net/ZeroAlloc.Analyzers/commit/6a791c537a641f18ba799222d5240407dfdeec77))
+
 ## [1.5.5](https://github.com/ZeroAlloc-Net/ZeroAlloc.Analyzers/compare/v1.5.4...v1.5.5) (2026-10-09)
 
 
