@@ -1,3 +1,4 @@
+using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.Testing;
 using ZeroAlloc.Analyzers.Tests.Verifiers;
 
@@ -89,5 +90,100 @@ public class ZA1707_UseConfigurationBindingGeneratorTests
             new PackageIdentity("Microsoft.Extensions.Options.ConfigurationExtensions", "7.0.0")]);
         await CSharpAnalyzerVerifier<UseConfigurationBindingGeneratorAnalyzer>.VerifyAnalyzerAsync(
             Binding("config.Bind(settings);"), "net8.0", older);
+    }
+
+    [Theory]
+    [InlineData(LanguageVersion.CSharp11)]
+    [InlineData(LanguageVersion.CSharp10)]
+    public async Task BelowCSharp12_NoDiagnostic(LanguageVersion languageVersion)
+    {
+        // The generator relies on interceptors and emits error SYSLIB1102 below C# 12.
+        await CSharpAnalyzerVerifier<UseConfigurationBindingGeneratorAnalyzer>.VerifyAnalyzerAsync(
+            Binding("config.Bind(settings);"), "net8.0", WithConfiguration, languageVersion);
+    }
+
+    [Fact]
+    public async Task CSharp12_Reports()
+    {
+        await CSharpAnalyzerVerifier<UseConfigurationBindingGeneratorAnalyzer>.VerifyAnalyzerAsync(
+            Binding("{|#0:config.Bind(settings)|};"), "net8.0", WithConfiguration, LanguageVersion.CSharp12,
+            Expected("ConfigurationBinder.Bind"));
+    }
+
+    private static string Nested(string accessibility, string statement) => $$"""
+        using System.Collections.Generic;
+        using Microsoft.Extensions.Configuration;
+        using Microsoft.Extensions.DependencyInjection;
+
+        class C
+        {
+            {{accessibility}} class Hidden
+            {
+                public string Name { get; set; } = "";
+            }
+
+            void M<T>(IConfiguration config, IServiceCollection services, Hidden hidden)
+                where T : class
+            {
+                {{statement}}
+            }
+        }
+        """;
+
+    [Theory]
+    [InlineData("_ = config.Get<T>();")]
+    [InlineData("_ = config.Get<List<T>>();")]
+    [InlineData("_ = config.Get<Dictionary<string, List<T>>>();")]
+    [InlineData("_ = config.Get<T[]>();")]
+    [InlineData("_ = config.Get(typeof(List<T>));")]
+    [InlineData("_ = config.GetValue<T>(\"Key\");")]
+    [InlineData("services.Configure<T>(config);")]
+    [InlineData("services.AddOptions<T>().Bind(config);")]
+    [InlineData("services.AddOptions<T>().BindConfiguration(\"Section\");")]
+    public async Task OpenTypeParameter_NoDiagnostic(string statement)
+    {
+        // The generator reports warning SYSLIB1104 for a type it cannot see at compile time.
+        await CSharpAnalyzerVerifier<UseConfigurationBindingGeneratorAnalyzer>.VerifyAnalyzerAsync(
+            Nested("public", statement), "net8.0", WithConfiguration);
+    }
+
+    [Theory]
+    [InlineData("private", "_ = config.Get<Hidden>();")]
+    [InlineData("private", "_ = config.Get<List<Hidden>>();")]
+    [InlineData("private", "_ = config.Get(typeof(Hidden));")]
+    [InlineData("private", "config.Bind(hidden);")]
+    [InlineData("private", "services.Configure<Hidden>(config);")]
+    [InlineData("protected", "_ = config.Get<Hidden>();")]
+    [InlineData("private protected", "_ = config.Get<Hidden>();")]
+    public async Task InaccessibleType_NoDiagnostic(string accessibility, string statement)
+    {
+        // Generated code lives outside the type, so it cannot name a private or protected type.
+        await CSharpAnalyzerVerifier<UseConfigurationBindingGeneratorAnalyzer>.VerifyAnalyzerAsync(
+            Nested(accessibility, statement), "net8.0", WithConfiguration);
+    }
+
+    [Theory]
+    [InlineData("public")]
+    [InlineData("internal")]
+    [InlineData("protected internal")]
+    public async Task AccessibleNestedType_Reports(string accessibility)
+    {
+        await CSharpAnalyzerVerifier<UseConfigurationBindingGeneratorAnalyzer>.VerifyAnalyzerAsync(
+            Nested(accessibility, "_ = {|#0:config.Get<Hidden>()|};"), "net8.0", WithConfiguration,
+            Expected("ConfigurationBinder.Get"));
+    }
+
+    [Fact]
+    public async Task WithoutBinderPackages_NoDiagnostic()
+    {
+        // Only the framework reference: none of the binding APIs exist, so the rule registers nothing.
+        const string source = """
+            class C
+            {
+                void M(object config) => System.Console.WriteLine(config);
+            }
+            """;
+        await CSharpAnalyzerVerifier<UseConfigurationBindingGeneratorAnalyzer>.VerifyAnalyzerAsync(
+            source, "net8.0", ReferenceAssemblies.Net.Net80);
     }
 }

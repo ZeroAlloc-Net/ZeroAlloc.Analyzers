@@ -38,6 +38,17 @@ public static class CSharpAnalyzerVerifier<TAnalyzer>
         await RunAsync(source, "net8.0", ReferenceAssemblies.Net.Net80, languageVersion, expected);
     }
 
+    /// <summary>Analyzes with the given reference assemblies at the given C# language version.</summary>
+    public static async Task VerifyAnalyzerAsync(
+        string source,
+        string targetFramework,
+        ReferenceAssemblies referenceAssemblies,
+        LanguageVersion languageVersion,
+        params DiagnosticResult[] expected)
+    {
+        await RunAsync(source, targetFramework, referenceAssemblies, languageVersion, expected);
+    }
+
     public static async Task VerifyNoDiagnosticAsync(
         string source,
         string targetFramework = "net8.0")

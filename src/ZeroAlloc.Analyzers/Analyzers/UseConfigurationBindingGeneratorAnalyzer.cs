@@ -1,5 +1,6 @@
 using System.Collections.Immutable;
 using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.Diagnostics;
 using Microsoft.CodeAnalysis.Operations;
 
@@ -7,7 +8,8 @@ namespace ZeroAlloc.Analyzers;
 
 /// <summary>
 /// Reports reflection-based configuration binding while the configuration-binding source
-/// generator is off. Stands down when the SDK's own AOT analyzer is enabled.
+/// generator is off. Stands down when the SDK's own AOT analyzer is enabled, and below C# 12,
+/// where the generator cannot use interceptors and emits error SYSLIB1102.
 /// </summary>
 [DiagnosticAnalyzer(LanguageNames.CSharp)]
 public sealed class UseConfigurationBindingGeneratorAnalyzer : DiagnosticAnalyzer
@@ -42,6 +44,10 @@ public sealed class UseConfigurationBindingGeneratorAnalyzer : DiagnosticAnalyze
                 return;
             }
 
+            // The generator intercepts calls, which needs C# 12; below it the build fails with SYSLIB1102.
+            if (start.Compilation is not CSharpCompilation { LanguageVersion: >= LanguageVersion.CSharp12 })
+                return;
+
             var builder = ImmutableArray.CreateBuilder<(INamedTypeSymbol Type, string[] Methods)>();
             foreach (var (typeName, methods) in BindingApis)
             {
@@ -69,9 +75,13 @@ public sealed class UseConfigurationBindingGeneratorAnalyzer : DiagnosticAnalyze
         {
             if (SymbolEqualityComparer.Default.Equals(method.ContainingType, type) && Array.IndexOf(methods, method.Name) >= 0)
             {
-                // The generator only replaces calls whose target type is known at compile time.
-                if (HasRuntimeOnlyTarget(invocation, method))
+                // The generator only replaces calls whose target type is known at compile time
+                // and that its generated code can name; it warns SYSLIB1104 for the others.
+                if (HasRuntimeOnlyTarget(invocation, method)
+                    || BoundType(invocation, method) is { } bound && !GeneratorCanBind(bound))
+                {
                     return;
+                }
 
                 context.ReportDiagnostic(Diagnostic.Create(
                     Rule,
@@ -99,6 +109,61 @@ public sealed class UseConfigurationBindingGeneratorAnalyzer : DiagnosticAnalyze
 
         return false;
     }
+
+    // The type the call binds: the method's type argument, the typeof operand passed as the
+    // System.Type argument, or the static type of the instance that Bind fills.
+    private static ITypeSymbol? BoundType(IInvocationOperation invocation, IMethodSymbol method)
+    {
+        if (method.TypeArguments.Length == 1)
+            return method.TypeArguments[0];
+
+        foreach (var argument in invocation.Arguments)
+        {
+            if (argument.Parameter is not { } parameter)
+                continue;
+
+            var value = Unwrap(argument.Value);
+            if (value is ITypeOfOperation typeOf)
+                return typeOf.TypeOperand;
+
+            if (method.Name == "Bind" && parameter.Name == "instance")
+                return value.Type;
+        }
+
+        return null;
+    }
+
+    // False when the bound type contains an open type parameter, or when the generated code,
+    // which lives outside the type, cannot name the type or one of its parts.
+    private static bool GeneratorCanBind(ITypeSymbol type)
+    {
+        switch (type)
+        {
+            case ITypeParameterSymbol:
+                return false;
+            case IArrayTypeSymbol array:
+                return GeneratorCanBind(array.ElementType);
+            case INamedTypeSymbol named:
+                for (var current = named; current is not null; current = current.ContainingType)
+                {
+                    if (IsHiddenFromGeneratedCode(current.DeclaredAccessibility))
+                        return false;
+
+                    foreach (var typeArgument in current.TypeArguments)
+                    {
+                        if (!GeneratorCanBind(typeArgument))
+                            return false;
+                    }
+                }
+
+                return true;
+            default:
+                return !IsHiddenFromGeneratedCode(type.DeclaredAccessibility);
+        }
+    }
+
+    private static bool IsHiddenFromGeneratedCode(Accessibility accessibility) =>
+        accessibility is Accessibility.Private or Accessibility.Protected or Accessibility.ProtectedAndInternal;
 
     private static IOperation Unwrap(IOperation operation)
     {
