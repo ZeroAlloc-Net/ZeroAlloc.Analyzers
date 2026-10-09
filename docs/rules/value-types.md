@@ -8,7 +8,7 @@ sidebar_position: 15
 
 # Value Types (ZA15xx)
 
-Structs have unique performance characteristics that are easy to exploit incorrectly. Using a struct as a dictionary key without overriding `GetHashCode` causes slow reflective hashing; adding a finalizer to any type introduces GC promotion overhead. The ZA15xx rules catch both patterns.
+Structs have unique performance characteristics that are easy to exploit incorrectly. Using a struct as a dictionary key without overriding `GetHashCode` causes slow reflective hashing; adding a finalizer to any type introduces GC promotion overhead. The ZA15xx rules catch these patterns.
 
 ---
 
@@ -428,4 +428,53 @@ public class LegacyResource
 #pragma warning restore ZA1502
 // or in .editorconfig:
 // dotnet_diagnostic.ZA1502.severity = none
+```
+
+---
+
+## ZA1503 — Implement IEquatable\<T\> on structs used as hash keys {#za1503}
+
+> **Severity**: Info | **Min TFM**: Any | **Code fix**: No
+
+### Why
+
+`Dictionary`, `HashSet` and `ConcurrentDictionary` compare keys through `EqualityComparer<T>.Default`. For a struct that does not implement `IEquatable<T>`, that comparer falls back to `Equals(object)`, which boxes the key on every lookup, insert and remove. Implementing `IEquatable<T>` gives the comparer a strongly typed `Equals` that does not allocate. [ZA1501](#za1501) covers the `GetHashCode` half of the same problem.
+
+The rule reports a hashed collection, or a `ToDictionary`, `ToHashSet`, `ToFrozenDictionary` or `ToFrozenSet` call, keyed on a struct from your own code that lacks `IEquatable<T>`, when no `IEqualityComparer<T>` is passed; passing `EqualityComparer<T>.Default` counts as passing none, because that is the comparer that boxes. Record structs already implement it, and enums and primitives have a non-boxing comparer. `ImmutableDictionary` and `ImmutableHashSet` are not covered, and neither are the LINQ hashing operators `Distinct`, `GroupBy`, `ToLookup`, `Union`, `Intersect` and `Except`.
+
+### Before
+
+```csharp
+// ❌ every lookup boxes the key to call Equals(object)
+public struct CellId
+{
+    public int Row;
+    public int Column;
+    public override int GetHashCode() => HashCode.Combine(Row, Column);
+}
+
+var cells = new Dictionary<CellId, Cell>();
+```
+
+### After
+
+```csharp
+// ✓ the default comparer calls Equals(CellId) directly
+public readonly struct CellId : IEquatable<CellId>
+{
+    public int Row { get; init; }
+    public int Column { get; init; }
+    public bool Equals(CellId other) => Row == other.Row && Column == other.Column;
+    public override bool Equals(object? obj) => obj is CellId other && Equals(other);
+    public override int GetHashCode() => HashCode.Combine(Row, Column);
+}
+
+var cells = new Dictionary<CellId, Cell>();
+```
+
+### Suppression
+
+```csharp
+#pragma warning disable ZA1503
+// or in .editorconfig: dotnet_diagnostic.ZA1503.severity = none
 ```

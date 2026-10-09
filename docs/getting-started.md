@@ -10,7 +10,7 @@ sidebar_position: 1
 
 ## What is ZeroAlloc.Analyzers?
 
-ZeroAlloc.Analyzers is a Roslyn analyzer NuGet package that detects allocation-heavy patterns in C# code and suggests zero or low-allocation alternatives. It covers 57 rules across 15 categories — from collection misuse and string concatenation to boxing, LINQ, async, value type pitfalls, cache-line data layout, and Native AOT compatibility. The package is multi-TFM aware: rules are automatically enabled or disabled based on the consuming project's `<TargetFramework>`, so you only see diagnostics that are actionable for your target runtime.
+ZeroAlloc.Analyzers is a Roslyn analyzer NuGet package that detects allocation-heavy patterns in C# code and suggests zero or low-allocation alternatives. It covers 59 rules across 15 categories — from collection misuse and string concatenation to boxing, LINQ, async, value type pitfalls, cache-line data layout, and Native AOT compatibility. The package is multi-TFM aware: rules are automatically enabled or disabled based on the consuming project's `<TargetFramework>`, so you only see diagnostics that are actionable for your target runtime.
 
 ---
 
@@ -121,7 +121,7 @@ See [configuration.md](configuration.md) for the full suppression and severity-t
 
 ## Rule Categories
 
-ZeroAlloc.Analyzers organizes its 57 rules into 15 categories:
+ZeroAlloc.Analyzers organizes its 59 rules into 15 categories:
 
 ```mermaid
 graph TD
@@ -137,8 +137,8 @@ graph TD
     ZeroAlloc --> SE["Sealing<br/>ZA09xx (1 rule)"]
     ZeroAlloc --> SZ["Serialization<br/>ZA10xx (1 rule)"]
     ZeroAlloc --> A["Async<br/>ZA11xx (3 rules)"]
-    ZeroAlloc --> D["Delegates<br/>ZA14xx (1 rule)"]
-    ZeroAlloc --> V["Value Types<br/>ZA15xx (2 rules)"]
+    ZeroAlloc --> D["Delegates<br/>ZA14xx (2 rules)"]
+    ZeroAlloc --> V["Value Types<br/>ZA15xx (3 rules)"]
     ZeroAlloc --> DL["Data Layout<br/>ZA16xx (1 rule)"]
     ZeroAlloc --> AOT["Native AOT<br/>ZA17xx (4 rules)"]
 ```
@@ -147,7 +147,7 @@ graph TD
 
 ## All Rules
 
-The tables below list all 57 rules grouped by category. Rule IDs link to the corresponding section in each category's reference document. The **Min TFM** column shows the minimum target framework required for the rule to fire; `Any` means the rule applies to all supported frameworks.
+The tables below list all 59 rules grouped by category. Rule IDs link to the corresponding section in each category's reference document. The **Min TFM** column shows the minimum target framework required for the rule to fire; `Any` means the rule applies to all supported frameworks.
 
 ### Collections (ZA01xx)
 
@@ -255,6 +255,7 @@ The tables below list all 57 rules grouped by category. Rule IDs link to the cor
 | Rule ID | Title | Severity | Min TFM |
 |---------|-------|----------|---------|
 | [ZA1401](rules/delegates.md#za1401) | Use static lambda when no capture needed | Info | net5.0 |
+| [ZA1402](rules/delegates.md#za1402) | Use the state-passing overload instead of a capturing lambda | Info | Any |
 
 ### Value Types (ZA15xx)
 
@@ -262,6 +263,7 @@ The tables below list all 57 rules grouped by category. Rule IDs link to the cor
 |---------|-------|----------|---------|
 | [ZA1501](rules/value-types.md#za1501) | Override GetHashCode on struct keys | Info | Any |
 | [ZA1502](rules/value-types.md#za1502) | Avoid finalizers, use IDisposable | Info | Any |
+| [ZA1503](rules/value-types.md#za1503) | Implement IEquatable\<T\> on structs used as hash keys | Info | Any |
 
 ### Data Layout (ZA16xx)
 

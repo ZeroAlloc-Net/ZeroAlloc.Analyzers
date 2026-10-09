@@ -74,10 +74,12 @@ public static class DiagnosticIds
 
     // ZA14xx — Delegates
     public const string UseStaticLambda = "ZA1401";
+    public const string UseStatePassingOverload = "ZA1402";
 
     // ZA15xx — Value Types
     public const string OverrideStructGetHashCode = "ZA1501";
     public const string AvoidFinalizers = "ZA1502";
+    public const string ImplementEquatableOnStructKey = "ZA1503";
 
     // ZA16xx — Data Layout (cache lines)
     public const string ReorderStructFields = "ZA1601";
