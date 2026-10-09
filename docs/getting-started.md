@@ -10,7 +10,7 @@ sidebar_position: 1
 
 ## What is ZeroAlloc.Analyzers?
 
-ZeroAlloc.Analyzers is a Roslyn analyzer NuGet package that detects allocation-heavy patterns in C# code and suggests zero or low-allocation alternatives. It covers 59 rules across 15 categories — from collection misuse and string concatenation to boxing, LINQ, async, value type pitfalls, cache-line data layout, and Native AOT compatibility. The package is multi-TFM aware: rules are automatically enabled or disabled based on the consuming project's `<TargetFramework>`, so you only see diagnostics that are actionable for your target runtime.
+ZeroAlloc.Analyzers is a Roslyn analyzer NuGet package that detects allocation-heavy patterns in C# code and suggests zero or low-allocation alternatives. It covers 63 rules across 15 categories — from collection misuse and string concatenation to boxing, LINQ, async, value type pitfalls, cache-line data layout, and Native AOT compatibility. The package is multi-TFM aware: rules are automatically enabled or disabled based on the consuming project's `<TargetFramework>`, so you only see diagnostics that are actionable for your target runtime.
 
 ---
 
@@ -121,7 +121,7 @@ See [configuration.md](configuration.md) for the full suppression and severity-t
 
 ## Rule Categories
 
-ZeroAlloc.Analyzers organizes its 59 rules into 15 categories:
+ZeroAlloc.Analyzers organizes its 63 rules into 15 categories:
 
 ```mermaid
 graph TD
@@ -140,14 +140,14 @@ graph TD
     ZeroAlloc --> D["Delegates<br/>ZA14xx (2 rules)"]
     ZeroAlloc --> V["Value Types<br/>ZA15xx (3 rules)"]
     ZeroAlloc --> DL["Data Layout<br/>ZA16xx (1 rule)"]
-    ZeroAlloc --> AOT["Native AOT<br/>ZA17xx (4 rules)"]
+    ZeroAlloc --> AOT["Native AOT<br/>ZA17xx (8 rules)"]
 ```
 
 ---
 
 ## All Rules
 
-The tables below list all 59 rules grouped by category. Rule IDs link to the corresponding section in each category's reference document. The **Min TFM** column shows the minimum target framework required for the rule to fire; `Any` means the rule applies to all supported frameworks.
+The tables below list all 63 rules grouped by category. Rule IDs link to the corresponding section in each category's reference document. The **Min TFM** column shows the minimum target framework required for the rule to fire; `Any` means the rule applies to all supported frameworks.
 
 ### Collections (ZA01xx)
 

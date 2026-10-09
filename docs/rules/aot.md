@@ -18,6 +18,8 @@ The value ZA17xx adds is for the **common case where you have not opted in yet**
 
 Several existing ZeroAlloc rules already steer toward AOT-friendly code: [ZA1001](serialization.md#za1001) (JSON source generation), [ZA0701](regex.md#za0701) (GeneratedRegex), and [ZA0401](logging.md#za0401) (LoggerMessage).
 
+ZA1706 to ZA1709 cover the next layer: a library that has not switched the SDK analyzers on at all (ZA1706), and the reflection-based helpers in `Microsoft.Extensions` that have a source-generated replacement (ZA1707 and ZA1708), plus `dynamic` (ZA1709).
+
 ---
 
 ## ZA1701 — Avoid compiling expression trees at runtime {#za1701}
