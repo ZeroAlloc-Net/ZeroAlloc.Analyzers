@@ -315,8 +315,35 @@ public class ZA0303_ReturnRentedArrayTests
             .VerifyNoDiagnosticAsync(source, "net8.0");
     }
 
+    [Theory]
+    [InlineData("Span<byte>", "return buffer.AsSpan();")]
+    [InlineData("Span<byte>", "return buffer;")]
+    [InlineData("ReadOnlySpan<byte>", "return buffer;")]
+    [InlineData("Span<byte>", "return new Span<byte>(buffer);")]
+    [InlineData("ReadOnlySpan<byte>", "return buffer.AsSpan(0, 4);")]
+    public async Task SpanReturned_Reports(string returnType, string statement)
+    {
+        // A span cannot carry ownership back to the pool, so the array is never returned.
+        var source = $$"""
+            using System;
+            using System.Buffers;
+
+            class C
+            {
+                {{returnType}} M()
+                {
+                    var buffer = {|#0:ArrayPool<byte>.Shared.Rent(16)|};
+                    {{statement}}
+                }
+            }
+            """;
+
+        await CSharpAnalyzerVerifier<ReturnRentedArrayAnalyzer>
+            .VerifyAnalyzerAsync(source, "net8.0", Expected("buffer"));
+    }
+
     [Fact]
-    public async Task SpanFromAsSpanReturned_NoDiagnostic()
+    public async Task SpanReturnedFromSpanReturningLocalFunction_Reports()
     {
         var source = """
             using System;
@@ -324,16 +351,21 @@ public class ZA0303_ReturnRentedArrayTests
 
             class C
             {
-                Span<byte> M()
+                int M()
                 {
-                    var buffer = ArrayPool<byte>.Shared.Rent(16);
-                    return buffer.AsSpan();
+                    return Slice().Length;
+
+                    static Span<byte> Slice()
+                    {
+                        var buffer = {|#0:ArrayPool<byte>.Shared.Rent(16)|};
+                        return buffer.AsSpan(0, 4);
+                    }
                 }
             }
             """;
 
         await CSharpAnalyzerVerifier<ReturnRentedArrayAnalyzer>
-            .VerifyNoDiagnosticAsync(source, "net8.0");
+            .VerifyAnalyzerAsync(source, "net8.0", Expected("buffer"));
     }
 
     [Fact]
@@ -359,7 +391,7 @@ public class ZA0303_ReturnRentedArrayTests
     }
 
     [Fact]
-    public async Task SpanLocalReturnedFromSpanMethod_NoDiagnostic()
+    public async Task SpanLocalReturnedFromSpanMethod_Reports()
     {
         var source = """
             using System;
@@ -369,14 +401,14 @@ public class ZA0303_ReturnRentedArrayTests
             {
                 Span<byte> M()
                 {
-                    var buffer = ArrayPool<byte>.Shared.Rent(16);
-                    var s = buffer.AsSpan();
+                    var buffer = {|#0:ArrayPool<byte>.Shared.Rent(16)|};
+                    Span<byte> s = buffer;
                     return s;
                 }
             }
             """;
 
         await CSharpAnalyzerVerifier<ReturnRentedArrayAnalyzer>
-            .VerifyNoDiagnosticAsync(source, "net8.0");
+            .VerifyAnalyzerAsync(source, "net8.0", Expected("buffer"));
     }
 }

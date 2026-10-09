@@ -18,6 +18,7 @@ public sealed class ReturnRentedArrayAnalyzer : DiagnosticAnalyzer
 
     // Methods on these types read or write a passed array without taking ownership of it,
     // provided the call does not hand back a value that can keep the array alive.
+    // A returned span keeps the array alive but cannot hand ownership back, so it is no escape.
     private static readonly string[] TrustedTypeNames =
     [
         "System.MemoryExtensions",
@@ -26,7 +27,8 @@ public sealed class ReturnRentedArrayAnalyzer : DiagnosticAnalyzer
         "System.IO.Stream",
     ];
 
-    // Stack-only views. Memory<T> and ReadOnlyMemory<T> are heap-storable, so they are not listed.
+    // Stack-only views, which cannot carry ownership back to the pool even when returned.
+    // Memory<T> and ReadOnlyMemory<T> are heap-storable and can, so they are not listed.
     private static readonly string[] SpanTypeNames =
     [
         "System.Span`1",
@@ -80,7 +82,6 @@ public sealed class ReturnRentedArrayAnalyzer : DiagnosticAnalyzer
             root = root.Parent;
 
         var rentFunctions = EnclosingFunctions(invocation);
-        var returnsSpan = ReturnsSpanByValue(invocation, context.ContainingSymbol, known);
 
         foreach (var reference in root.Descendants().OfType<ILocalReferenceOperation>())
         {
@@ -91,7 +92,7 @@ public sealed class ReturnRentedArrayAnalyzer : DiagnosticAnalyzer
             if (reference.Parent is ISimpleAssignmentOperation assignment && assignment.Target == reference)
                 continue;
 
-            if (IsReturnedOrEscapes(reference, rentFunctions, returnsSpan, known))
+            if (IsReturnedOrEscapes(reference, rentFunctions, known))
                 return;
         }
 
@@ -123,7 +124,6 @@ public sealed class ReturnRentedArrayAnalyzer : DiagnosticAnalyzer
     private static bool IsReturnedOrEscapes(
         ILocalReferenceOperation reference,
         ImmutableArray<IOperation> rentFunctions,
-        bool returnsSpan,
         KnownTypes known)
     {
         for (var current = reference.Parent; current is not null; current = current.Parent)
@@ -139,13 +139,13 @@ public sealed class ReturnRentedArrayAnalyzer : DiagnosticAnalyzer
                     return true;
                 return argument.Parameter?.RefKind != RefKind.None
                     || !known.IsTrusted(call.TargetMethod.ContainingType)
-                    || !IsNonRetainingCall(call, returnsSpan, known);
+                    || !IsNonRetainingCall(call, known);
             case IArgumentOperation { Parent: IObjectCreationOperation creation }:
-                return !known.IsSpan(creation.Type) || returnsSpan || IsDirectlyReturned(creation);
+                return !known.IsSpan(creation.Type);
             case IConversionOperation conversion:
                 if (conversion.Parent is IForEachLoopOperation)
                     return false;
-                return !known.IsSpan(conversion.Type) || returnsSpan || IsDirectlyReturned(conversion);
+                return !known.IsSpan(conversion.Type);
             case IArrayElementReferenceOperation element:
                 return element.ArrayReference != reference;
             case IPropertyReferenceOperation property:
@@ -159,42 +159,16 @@ public sealed class ReturnRentedArrayAnalyzer : DiagnosticAnalyzer
         }
     }
 
-    // A trusted call keeps no reference to its array when it returns void, a primitive or other
-    // special non-object type, or a span that the caller does not get back directly. Object is
-    // excluded because it can hold the array; Memory, arrays, tasks and collections can too.
-    private static bool IsNonRetainingCall(IInvocationOperation call, bool returnsSpan, KnownTypes known)
+    // A trusted call gives the pool no way back to its array when it returns void, a primitive or
+    // other special non-object type, or a span. Object is excluded because it can hold the array;
+    // Memory, arrays, tasks and collections can too.
+    private static bool IsNonRetainingCall(IInvocationOperation call, KnownTypes known)
     {
         var returnType = call.TargetMethod.ReturnType;
         if (returnType.SpecialType is not (SpecialType.None or SpecialType.System_Object))
             return true;
 
-        return known.IsSpan(returnType) && !returnsSpan && !IsDirectlyReturned(call);
-    }
-
-    // True when the function that owns the rent (the innermost lambda or local function around it,
-    // else the analyzed method) returns a span by value. A span handed out there leaves the method.
-    private static bool ReturnsSpanByValue(IOperation rent, ISymbol? containingSymbol, KnownTypes known)
-    {
-        for (var current = rent.Parent; current is not null; current = current.Parent)
-        {
-            if (current is IAnonymousFunctionOperation lambda)
-                return known.IsSpan(lambda.Symbol.ReturnType);
-
-            if (current is ILocalFunctionOperation localFunction)
-                return known.IsSpan(localFunction.Symbol.ReturnType);
-        }
-
-        return containingSymbol is IMethodSymbol method && known.IsSpan(method.ReturnType);
-    }
-
-    // True when the value, possibly after implicit conversions, is the operand of a return.
-    private static bool IsDirectlyReturned(IOperation operation)
-    {
-        var current = operation;
-        while (current.Parent is IConversionOperation conversion)
-            current = conversion;
-
-        return current.Parent is IReturnOperation;
+        return known.IsSpan(returnType);
     }
 
     private sealed class KnownTypes(
