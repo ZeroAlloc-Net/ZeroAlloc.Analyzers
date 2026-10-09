@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.7.0](https://github.com/ZeroAlloc-Net/ZeroAlloc.Analyzers/compare/v1.6.0...v1.7.0) (2026-10-09)
+
+
+### Features
+
+* add ZA1402 to suggest state-passing overloads over capturing lambdas ([4c7a135](https://github.com/ZeroAlloc-Net/ZeroAlloc.Analyzers/commit/4c7a13593c7e5c3c1b5ae6947c81ae98e49878f0))
+* add ZA1503 to report struct hash keys without IEquatable ([4c7a135](https://github.com/ZeroAlloc-Net/ZeroAlloc.Analyzers/commit/4c7a13593c7e5c3c1b5ae6947c81ae98e49878f0))
+
 ## [1.6.0](https://github.com/ZeroAlloc-Net/ZeroAlloc.Analyzers/compare/v1.5.6...v1.6.0) (2026-10-09)
 
 
