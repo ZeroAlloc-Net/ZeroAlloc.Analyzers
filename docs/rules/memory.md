@@ -428,7 +428,9 @@ await destination.WriteAsync(buffer[..read], ct);
 
 `ArrayPool<T>.Rent` only saves an allocation if the array goes back with `Return`. An array that is rented and never returned is a plain allocation plus pool bookkeeping, and the pool has to allocate again for the next caller. The rule reports a rented array that is stored in a local, never passed to `Return`, and never leaves the method.
 
-It stays silent once the array may have changed owner: when it is returned, stored in a field, aliased, captured by a lambda, converted to `Memory<T>` or `ReadOnlyMemory<T>`, or passed to a method that could keep it. Passing it to `Stream`, `Array`, `Buffer` or `MemoryExtensions` methods does not count when the call returns `void`, a primitive, or a `Span<T>`, because those only read or write the array. A span or such a call is treated as an escape when its result is returned directly, and any other return type, such as `Memory<T>`, is an escape. A `Return` outside a `finally` is fine: if an exception skips it, the GC collects the array.
+It stays silent once the array may have changed owner: when it is returned, stored in a field, aliased, captured by a lambda, converted to `Memory<T>` or `ReadOnlyMemory<T>`, or passed to a method that could keep it. Passing it to `Stream`, `Array`, `Buffer` or `MemoryExtensions` methods does not count when the call returns `void`, a primitive, or a span, because those only read or write the array; any other return type, such as `Memory<T>`, is an escape. A `Span<T>` or `ReadOnlySpan<T>` over the array never counts as an escape, even when the method returns it: a span cannot carry ownership back to the pool, so an array that leaves the method only as a span is never returned. A `Return` outside a `finally` is fine: if an exception skips it, the GC collects the array.
+
+On `netstandard2.0`, the rule needs `ArrayPool<T>` from the System.Buffers package, which the System.Memory package brings in.
 
 ### Before
 
@@ -478,7 +480,9 @@ public uint Checksum(Stream stream)
 
 `static readonly int[] Table = { … }` allocates an array when the type is initialized and copies the constants into it. A `static ReadOnlySpan<int> Table => [ … ];` property reads them straight from the assembly's data section, with no allocation and no type-initializer work. Call sites that index the table, read `Length` or `foreach` over it compile unchanged.
 
-The rule reports `private` and `internal` tables of primitives whose every use is a read. `byte`, `sbyte` and `bool` tables qualify on every runtime; other primitives need `RuntimeHelpers.CreateSpan`, which arrived in .NET 7. Because it has to see every use of the field, the rule reports when the whole project is analyzed, on build or with full-solution analysis, not while you type. The code fix writes a collection expression on C# 12 and later and `new T[] { … }` before that; the compiler reads both from static data.
+The rule reports `private` and `internal` tables of primitives whose every use is a read. `byte`, `sbyte` and `bool` tables qualify on every runtime; other primitives need `RuntimeHelpers.CreateSpan`, which arrived in .NET 7. On `netstandard2.0`, the rule needs `ReadOnlySpan<T>` from the System.Memory package. Because it has to see every use of the field, the rule reports when the whole project is analyzed, on build or with full-solution analysis, not while you type. The code fix writes a collection expression on C# 12 and later and `new T[] { … }` before that; the compiler reads both from static data.
+
+Some tables are skipped because a property would not work for every use. Internal tables are skipped when the assembly has `InternalsVisibleTo`, because a friend assembly can read the field where the rule cannot see it. A table read inside an async function or an iterator is skipped, because a span cannot live across an `await` or a `yield`. A table read inside an expression-tree lambda is skipped, because an expression tree cannot use a span.
 
 ### Before
 

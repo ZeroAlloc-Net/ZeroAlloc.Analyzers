@@ -47,9 +47,9 @@ Roslyn analyzers run incrementally; on a warmed-up build only changed files are 
 
 | Scenario | Rules active | Typical first-build overhead | Incremental overhead |
 |---|---|---|---|
-| `netstandard2.0` single-TFM | 40 of 57 | ~120 ms | ~10 ms |
+| `netstandard2.0` single-TFM | 38 of 57, or 40 with the System.Memory package | ~120 ms | ~10 ms |
 | `net8.0` single-TFM | 55 of 57 | ~200 ms | ~15 ms |
-| `net8.0` + `netstandard2.0` multi-TFM | 55 / 40 per TFM | ~350 ms | ~25 ms |
+| `net8.0` + `netstandard2.0` multi-TFM | 55 / 38 per TFM, or 55 / 40 with System.Memory | ~350 ms | ~25 ms |
 | `net8.0`, data-flow rules disabled (ZA0607, ZA0502) | 53 of 57 | ~160 ms | ~10 ms |
 
 See [docs/performance.md](docs/performance.md) for tuning tips.

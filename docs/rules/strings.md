@@ -857,6 +857,8 @@ writer.Write("\r\n"u8);
 
 `string.Split` allocates the result array and a new string for every part, even when the loop only looks at each part once. Since .NET 9, `MemoryExtensions.Split` on a `ReadOnlySpan<char>` enumerates the parts as `Range` values over the original text, with no allocation. The rule reports a `foreach` directly over `string.Split` with a single `char` or non-empty constant string separator and no `StringSplitOptions`, because the span enumerator supports neither multiple separators nor options. There is no code fix: the loop variable changes from `string` to `Range`, so the body has to change.
 
+The span enumerator is a ref struct, so it cannot be live across an `await` or a `yield`. The rule stays silent when the loop body awaits or yields, and, before C# 13, anywhere in an async method or an iterator. Note that a `null` string throws a `NullReferenceException` from `string.Split`, while `AsSpan()` turns it into an empty span and the loop runs without throwing.
+
 ### Before
 
 ```csharp
@@ -889,7 +891,9 @@ foreach (var range in span.Split(','))
 
 ### Why
 
-When `Parse` fails it allocates an exception and captures a stack trace, which costs far more than the parse itself. Code that catches that exception to fall back to a default pays this on every bad input. `TryParse` reports failure through its return value and allocates nothing. The rule reports a `Parse` call inside a `try` whose matching `catch` swallows the exception, for any type with a `TryParse` that takes the same parameters plus an `out` result. That covers the numeric types, `Guid`, `DateTime`, `Enum.Parse<T>` and your own `IParsable<T>` types.
+When `Parse` fails it allocates an exception and captures a stack trace, which costs far more than the parse itself. Code that catches that exception to fall back to a default pays this on every bad input. `TryParse` reports failure through its return value and typically allocates nothing. The rule reports a `Parse` call inside a `try` whose matching `catch` swallows the exception, for any type with a `TryParse` that takes the same parameters plus an `out` result. That covers the numeric types, `Guid`, `DateTime`, `Enum.Parse<T>` and your own `IParsable<T>` types.
+
+`TryParse` is not always a drop-in replacement. The `catch` may also cover other statements in the `try` that can throw, or read the exception, for example to log its message. Keep that handling when you rewrite the code.
 
 ### Before
 
