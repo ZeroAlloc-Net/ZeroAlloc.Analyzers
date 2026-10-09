@@ -415,6 +415,7 @@ await destination.WriteAsync(buffer[..read], ct);
 // or in .editorconfig: dotnet_diagnostic.ZA0302.severity = none
 ```
 
+
 ---
 
 ## ZA0303 — Return rented arrays to the pool {#za0303}
@@ -425,17 +426,17 @@ await destination.WriteAsync(buffer[..read], ct);
 
 `ArrayPool<T>.Rent` only saves an allocation if the array goes back with `Return`. An array that is rented and never returned is a plain allocation plus pool bookkeeping, and the pool has to allocate again for the next caller. The rule reports a rented array that is stored in a local, never passed to `Return`, and never leaves the method.
 
-It stays silent once the array may have changed owner: when it is returned, stored in a field, aliased, captured by a lambda, or passed to a method that could keep it. Passing it to `Stream`, `Array`, `Buffer` or `MemoryExtensions` methods such as `AsSpan` does not count, because those only read or write it. A `Return` outside a `finally` is fine: if an exception skips it, the GC collects the array.
+It stays silent once the array may have changed owner: when it is returned, stored in a field, aliased, captured by a lambda, converted to `Memory<T>` or `ReadOnlyMemory<T>`, or passed to a method that could keep it. Passing it to `Stream`, `Array`, `Buffer` or `MemoryExtensions` methods does not count when the call returns `void`, a primitive, or a `Span<T>`, because those only read or write the array. A span or such a call is treated as an escape when its result is returned directly, and any other return type, such as `Memory<T>`, is an escape. A `Return` outside a `finally` is fine: if an exception skips it, the GC collects the array.
 
 ### Before
 
 ```csharp
 // ❌ the rented buffer is never returned, so every call allocates anyway
-public int Checksum(Stream stream)
+public uint Checksum(Stream stream)
 {
     var buffer = ArrayPool<byte>.Shared.Rent(4096);
     var read = stream.Read(buffer, 0, buffer.Length);
-    return Crc32.Compute(buffer.AsSpan(0, read));
+    return System.IO.Hashing.Crc32.HashToUInt32(buffer.AsSpan(0, read));
 }
 ```
 
@@ -443,13 +444,13 @@ public int Checksum(Stream stream)
 
 ```csharp
 // ✓ the buffer goes back to the pool for the next caller
-public int Checksum(Stream stream)
+public uint Checksum(Stream stream)
 {
     var buffer = ArrayPool<byte>.Shared.Rent(4096);
     try
     {
         var read = stream.Read(buffer, 0, buffer.Length);
-        return Crc32.Compute(buffer.AsSpan(0, read));
+        return System.IO.Hashing.Crc32.HashToUInt32(buffer.AsSpan(0, read));
     }
     finally
     {

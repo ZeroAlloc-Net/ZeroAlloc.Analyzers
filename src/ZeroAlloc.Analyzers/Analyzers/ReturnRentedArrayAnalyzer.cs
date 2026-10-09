@@ -16,7 +16,8 @@ public sealed class ReturnRentedArrayAnalyzer : DiagnosticAnalyzer
         DiagnosticSeverity.Warning,
         isEnabledByDefault: true);
 
-    // Methods on these types read or write a passed array without taking ownership of it.
+    // Methods on these types read or write a passed array without taking ownership of it,
+    // provided the call does not hand back a value that can keep the array alive.
     private static readonly string[] TrustedTypeNames =
     [
         "System.MemoryExtensions",
@@ -25,12 +26,11 @@ public sealed class ReturnRentedArrayAnalyzer : DiagnosticAnalyzer
         "System.IO.Stream",
     ];
 
+    // Stack-only views. Memory<T> and ReadOnlyMemory<T> are heap-storable, so they are not listed.
     private static readonly string[] SpanTypeNames =
     [
         "System.Span`1",
         "System.ReadOnlySpan`1",
-        "System.Memory`1",
-        "System.ReadOnlyMemory`1",
     ];
 
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => [Rule];
@@ -135,11 +135,15 @@ public sealed class ReturnRentedArrayAnalyzer : DiagnosticAnalyzer
             case IArgumentOperation { Parent: IInvocationOperation call } argument:
                 if (call.TargetMethod.Name == "Return" && known.IsArrayPool(call.TargetMethod.ContainingType))
                     return true;
-                return argument.Parameter?.RefKind != RefKind.None || !known.IsTrusted(call.TargetMethod.ContainingType);
+                return argument.Parameter?.RefKind != RefKind.None
+                    || !known.IsTrusted(call.TargetMethod.ContainingType)
+                    || !IsNonRetainingCall(call, known);
             case IArgumentOperation { Parent: IObjectCreationOperation creation }:
-                return !known.IsSpan(creation.Type);
+                return !known.IsSpan(creation.Type) || IsDirectlyReturned(creation);
             case IConversionOperation conversion:
-                return conversion.Parent is not IForEachLoopOperation && !known.IsSpan(conversion.Type);
+                if (conversion.Parent is IForEachLoopOperation)
+                    return false;
+                return !known.IsSpan(conversion.Type) || IsDirectlyReturned(conversion);
             case IArrayElementReferenceOperation element:
                 return element.ArrayReference != reference;
             case IPropertyReferenceOperation property:
@@ -151,6 +155,28 @@ public sealed class ReturnRentedArrayAnalyzer : DiagnosticAnalyzer
             default:
                 return true;
         }
+    }
+
+    // A trusted call keeps no reference to its array when it returns void, a primitive or other
+    // special non-object type, or a span that the caller does not get back directly. Object is
+    // excluded because it can hold the array; Memory, arrays, tasks and collections can too.
+    private static bool IsNonRetainingCall(IInvocationOperation call, KnownTypes known)
+    {
+        var returnType = call.TargetMethod.ReturnType;
+        if (returnType.SpecialType is not (SpecialType.None or SpecialType.System_Object))
+            return true;
+
+        return known.IsSpan(returnType) && !IsDirectlyReturned(call);
+    }
+
+    // True when the value, possibly after implicit conversions, is the operand of a return.
+    private static bool IsDirectlyReturned(IOperation operation)
+    {
+        var current = operation;
+        while (current.Parent is IConversionOperation conversion)
+            current = conversion;
+
+        return current.Parent is IReturnOperation;
     }
 
     private sealed class KnownTypes(

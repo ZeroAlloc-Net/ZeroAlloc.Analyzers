@@ -176,4 +176,185 @@ public class ZA0303_ReturnRentedArrayTests
         await CSharpAnalyzerVerifier<ReturnRentedArrayAnalyzer>
             .VerifyNoDiagnosticAsync(source, "net8.0");
     }
+
+    [Fact]
+    public async Task ForeachOverRentedArrayWithoutReturn_Reports()
+    {
+        var source = """
+            using System.Buffers;
+
+            class C
+            {
+                int M()
+                {
+                    var buffer = {|#0:ArrayPool<byte>.Shared.Rent(16)|};
+                    var sum = 0;
+                    foreach (var b in buffer)
+                    {
+                        sum += b;
+                    }
+                    return sum;
+                }
+            }
+            """;
+
+        await CSharpAnalyzerVerifier<ReturnRentedArrayAnalyzer>
+            .VerifyAnalyzerAsync(source, "net8.0", Expected("buffer"));
+    }
+
+    [Fact]
+    public async Task RentAndReturnInsideLambda_NoDiagnostic()
+    {
+        var source = """
+            using System;
+            using System.Buffers;
+
+            class C
+            {
+                void M()
+                {
+                    Action a = () =>
+                    {
+                        var buffer = ArrayPool<byte>.Shared.Rent(16);
+                        ArrayPool<byte>.Shared.Return(buffer);
+                    };
+                    a();
+                }
+            }
+            """;
+
+        await CSharpAnalyzerVerifier<ReturnRentedArrayAnalyzer>
+            .VerifyNoDiagnosticAsync(source, "net8.0");
+    }
+
+    [Fact]
+    public async Task ArrayReturnedAsMemory_NoDiagnostic()
+    {
+        var source = """
+            using System;
+            using System.Buffers;
+
+            class C
+            {
+                Memory<byte> M()
+                {
+                    var buffer = ArrayPool<byte>.Shared.Rent(16);
+                    return buffer;
+                }
+            }
+            """;
+
+        await CSharpAnalyzerVerifier<ReturnRentedArrayAnalyzer>
+            .VerifyNoDiagnosticAsync(source, "net8.0");
+    }
+
+    [Fact]
+    public async Task ArrayStoredAsMemoryField_NoDiagnostic()
+    {
+        var source = """
+            using System;
+            using System.Buffers;
+
+            class C
+            {
+                private Memory<byte> _mem;
+
+                void M()
+                {
+                    var buffer = ArrayPool<byte>.Shared.Rent(16);
+                    _mem = buffer;
+                }
+            }
+            """;
+
+        await CSharpAnalyzerVerifier<ReturnRentedArrayAnalyzer>
+            .VerifyNoDiagnosticAsync(source, "net8.0");
+    }
+
+    [Fact]
+    public async Task ArrayPassedToMemoryParameter_NoDiagnostic()
+    {
+        var source = """
+            using System;
+            using System.Buffers;
+
+            class C
+            {
+                private static void Keep(Memory<byte> memory) { }
+
+                void M()
+                {
+                    var buffer = ArrayPool<byte>.Shared.Rent(16);
+                    Keep(buffer);
+                }
+            }
+            """;
+
+        await CSharpAnalyzerVerifier<ReturnRentedArrayAnalyzer>
+            .VerifyNoDiagnosticAsync(source, "net8.0");
+    }
+
+    [Fact]
+    public async Task MemoryFromAsMemoryReturned_NoDiagnostic()
+    {
+        var source = """
+            using System;
+            using System.Buffers;
+
+            class C
+            {
+                Memory<byte> M()
+                {
+                    var buffer = ArrayPool<byte>.Shared.Rent(16);
+                    return buffer.AsMemory(0, 4);
+                }
+            }
+            """;
+
+        await CSharpAnalyzerVerifier<ReturnRentedArrayAnalyzer>
+            .VerifyNoDiagnosticAsync(source, "net8.0");
+    }
+
+    [Fact]
+    public async Task SpanFromAsSpanReturned_NoDiagnostic()
+    {
+        var source = """
+            using System;
+            using System.Buffers;
+
+            class C
+            {
+                Span<byte> M()
+                {
+                    var buffer = ArrayPool<byte>.Shared.Rent(16);
+                    return buffer.AsSpan();
+                }
+            }
+            """;
+
+        await CSharpAnalyzerVerifier<ReturnRentedArrayAnalyzer>
+            .VerifyNoDiagnosticAsync(source, "net8.0");
+    }
+
+    [Fact]
+    public async Task SpanLocalWithoutReturn_Reports()
+    {
+        var source = """
+            using System;
+            using System.Buffers;
+
+            class C
+            {
+                void M()
+                {
+                    var buffer = {|#0:ArrayPool<byte>.Shared.Rent(16)|};
+                    var span = buffer.AsSpan();
+                    span.Clear();
+                }
+            }
+            """;
+
+        await CSharpAnalyzerVerifier<ReturnRentedArrayAnalyzer>
+            .VerifyAnalyzerAsync(source, "net8.0", Expected("buffer"));
+    }
 }
