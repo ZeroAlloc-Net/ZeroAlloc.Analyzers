@@ -195,6 +195,31 @@ public class ZA0110_PreferParamsSpanTests
     }
 
     [Fact]
+    public async Task NamespaceNotImported_FixKeepsTypeResolvable()
+    {
+        var source = """
+            using System;
+
+            class C
+            {
+                static int Count(params System.Text.StringBuilder[] {|#0:items|}) => items.Length;
+            }
+            """;
+
+        var fixedSource = """
+            using System;
+
+            class C
+            {
+                static int Count(params ReadOnlySpan<System.Text.StringBuilder> items) => items.Length;
+            }
+            """;
+
+        await CSharpCodeFixVerifier<PreferParamsSpanAnalyzer, PreferParamsSpanCodeFixProvider>
+            .VerifyCodeFixAsync(source, fixedSource, Expected("Count", elementType: "StringBuilder", parameter: "items"), compilationEndDiagnostic: true);
+    }
+
+    [Fact]
     public async Task MissingUsingSystem_FixAddsIt()
     {
         var source = """
