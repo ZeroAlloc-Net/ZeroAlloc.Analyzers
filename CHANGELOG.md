@@ -1,5 +1,23 @@
 # Changelog
 
+## [1.6.0](https://github.com/ZeroAlloc-Net/ZeroAlloc.Analyzers/compare/v1.5.6...v1.6.0) (2026-10-09)
+
+
+### Features
+
+* add ZA0110 to suggest declaring params as ReadOnlySpan ([bd67b56](https://github.com/ZeroAlloc-Net/ZeroAlloc.Analyzers/commit/bd67b569dc93c2f3d01319537908cbcb4a5422bf))
+* add ZA0111 to enumerate ConcurrentDictionary instead of Keys or Values snapshots ([bd67b56](https://github.com/ZeroAlloc-Net/ZeroAlloc.Analyzers/commit/bd67b569dc93c2f3d01319537908cbcb4a5422bf))
+* add ZA0210 to replace constant UTF-8 encoding with u8 literals ([bd67b56](https://github.com/ZeroAlloc-Net/ZeroAlloc.Analyzers/commit/bd67b569dc93c2f3d01319537908cbcb4a5422bf))
+* add ZA0211 to suggest the span-based Split on .NET 9 ([bd67b56](https://github.com/ZeroAlloc-Net/ZeroAlloc.Analyzers/commit/bd67b569dc93c2f3d01319537908cbcb4a5422bf))
+* add ZA0212 to prefer TryParse over catching Parse exceptions ([bd67b56](https://github.com/ZeroAlloc-Net/ZeroAlloc.Analyzers/commit/bd67b569dc93c2f3d01319537908cbcb4a5422bf))
+* add ZA0303 to report rented arrays never returned to the pool ([bd67b56](https://github.com/ZeroAlloc-Net/ZeroAlloc.Analyzers/commit/bd67b569dc93c2f3d01319537908cbcb4a5422bf))
+* add ZA0304 to turn constant lookup tables into ReadOnlySpan properties ([bd67b56](https://github.com/ZeroAlloc-Net/ZeroAlloc.Analyzers/commit/bd67b569dc93c2f3d01319537908cbcb4a5422bf))
+
+
+### Bug Fixes
+
+* stop the ZA0109 code fix adding a redundant using System next to a global using ([bd67b56](https://github.com/ZeroAlloc-Net/ZeroAlloc.Analyzers/commit/bd67b569dc93c2f3d01319537908cbcb4a5422bf))
+
 ## [1.5.6](https://github.com/ZeroAlloc-Net/ZeroAlloc.Analyzers/compare/v1.5.5...v1.5.6) (2026-10-09)
 
 
