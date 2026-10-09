@@ -12,6 +12,7 @@ public static class DiagnosticIds
     public const string PreSizeCollections = "ZA0107";
     public const string AvoidRedundantMaterialization = "ZA0108";
     public const string AvoidZeroLengthArrayAllocation = "ZA0109";
+    public const string PreferParamsSpan = "ZA0110";
     public const string AvoidConcurrentDictionarySnapshot = "ZA0111";
 
     // ZA02xx — Strings

@@ -11,3 +11,4 @@ ZA0210  | Performance.Strings     | Warning  | UseUtf8StringLiteralAnalyzer
 ZA0111  | Performance.Collections | Info     | AvoidConcurrentDictionarySnapshotAnalyzer
 ZA0212  | Performance.Strings     | Info     | UseTryParseAnalyzer
 ZA0211  | Performance.Strings     | Info     | UseSpanSplitAnalyzer
+ZA0110  | Performance.Collections | Info     | PreferParamsSpanAnalyzer

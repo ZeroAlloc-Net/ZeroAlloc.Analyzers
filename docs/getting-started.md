@@ -162,6 +162,7 @@ The tables below list all 50 rules grouped by category. Rule IDs link to the cor
 | [ZA0107](rules/collections.md#za0107) | Pre-size collections when capacity is known | Info | Any |
 | [ZA0108](rules/collections.md#za0108) | Avoid redundant ToList/ToArray materialization | Warning | Any |
 | [ZA0109](rules/collections.md#za0109) | Avoid zero-length array allocation | Warning | Any |
+| [ZA0110](rules/collections.md#za0110) | Declare params as ReadOnlySpan\<T\> | Info | Any (C# 13) |
 | [ZA0111](rules/collections.md#za0111) | Enumerate the ConcurrentDictionary instead of its Keys or Values | Info | Any |
 
 ### Strings (ZA02xx)

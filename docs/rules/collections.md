@@ -610,6 +610,53 @@ public void Process(Order order, string[] notes = null)
 
 ---
 
+## ZA0110 — Declare params as ReadOnlySpan\<T\> {#za0110}
+
+> **Severity**: Info | **Min TFM**: Any (C# 13) | **Code fix**: Yes, for methods not visible outside the assembly
+
+### Why
+
+Every call to a `params T[]` method that passes individual arguments allocates a new array. Since C# 13, a `params ReadOnlySpan<T>` parameter gets its arguments from an inline array on the stack on .NET 8 and later, so calls allocate nothing. This is the declaration side of [ZA0602](linq.md#za0602).
+
+The rule reports a `params T[]` parameter whose method only reads it: indexing, `Length`, `foreach`, or passing it on as a `ReadOnlySpan<T>`. A method that stores, returns or captures the array, writes its elements, or is used as a method group keeps the array. So do overrides, interface implementations, virtual, abstract and partial methods, async methods and iterators.
+
+For a method other assemblies can call, changing the parameter type is a binary breaking change, so the rule suggests adding a `params ReadOnlySpan<T>` overload instead and offers no code fix. Because it has to see every use of the method, the rule reports when the whole project is analyzed, on build or with full-solution analysis, not while you type.
+
+### Before
+
+```csharp
+// ❌ every call allocates an int[]
+private static int Max(params int[] values)
+{
+    var max = int.MinValue;
+    foreach (var value in values)
+        max = Math.Max(max, value);
+    return max;
+}
+```
+
+### After
+
+```csharp
+// ✓ calls pass an inline array on the stack
+private static int Max(params ReadOnlySpan<int> values)
+{
+    var max = int.MinValue;
+    foreach (var value in values)
+        max = Math.Max(max, value);
+    return max;
+}
+```
+
+### Suppression
+
+```csharp
+#pragma warning disable ZA0110
+// or in .editorconfig: dotnet_diagnostic.ZA0110.severity = none
+```
+
+---
+
 ## ZA0111 — Enumerate the ConcurrentDictionary instead of its Keys or Values {#za0111}
 
 > **Severity**: Info | **Min TFM**: Any | **Code fix**: Yes
