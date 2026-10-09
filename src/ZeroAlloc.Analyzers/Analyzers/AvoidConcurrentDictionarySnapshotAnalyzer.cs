@@ -58,7 +58,8 @@ public sealed class AvoidConcurrentDictionarySnapshotAnalyzer : DiagnosticAnalyz
                 enumerable is not null
                 && call.TargetMethod.IsExtensionMethod
                 && SymbolEqualityComparer.Default.Equals(call.TargetMethod.ContainingType, enumerable)
-                && argument.Parameter?.Ordinal == 0,
+                && argument.Parameter?.Ordinal == 0
+                && !IsPredicateLessCountOrAny(call),
             _ => false,
         };
 
@@ -68,4 +69,9 @@ public sealed class AvoidConcurrentDictionarySnapshotAnalyzer : DiagnosticAnalyz
         var member = reference.Property.Name == "Keys" ? "Key" : "Value";
         context.ReportDiagnostic(Diagnostic.Create(Rule, reference.Syntax.GetLocation(), reference.Syntax.ToString(), member));
     }
+
+    // These read the snapshot's count without enumerating it. The copy is the cost, and the
+    // dictionary's IsEmpty or Count avoid it, but enumerating the dictionary would not.
+    private static bool IsPredicateLessCountOrAny(IInvocationOperation call) =>
+        call.TargetMethod.Name is "Any" or "Count" or "LongCount" && call.Arguments.Length == 1;
 }

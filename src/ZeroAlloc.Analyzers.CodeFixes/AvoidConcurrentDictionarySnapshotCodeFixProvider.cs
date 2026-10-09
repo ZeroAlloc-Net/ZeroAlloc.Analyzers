@@ -5,6 +5,7 @@ using Microsoft.CodeAnalysis.CodeActions;
 using Microsoft.CodeAnalysis.CodeFixes;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
+using Microsoft.CodeAnalysis.Operations;
 
 namespace ZeroAlloc.Analyzers.CodeFixes;
 
@@ -23,7 +24,8 @@ public sealed class AvoidConcurrentDictionarySnapshotCodeFixProvider : CodeFixPr
             || access.Parent is not ForEachStatementSyntax loop
             || loop.Expression != access
             || model is null
-            || !CanDeconstruct(model, loop, access))
+            || !CanDeconstruct(model, loop, access)
+            || MutatesDictionary(model, loop, access, context.CancellationToken))
         {
             return;
         }
@@ -54,6 +56,65 @@ public sealed class AvoidConcurrentDictionarySnapshotCodeFixProvider : CodeFixPr
             ?.TypeArguments[0];
         return SymbolEqualityComparer.Default.Equals(model.GetTypeInfo(loop.Type).Type, elementType);
     }
+
+    private static readonly ImmutableHashSet<string> MutatingMethods =
+        ["TryAdd", "GetOrAdd", "AddOrUpdate", "TryUpdate", "TryRemove", "Clear"];
+
+    // Keys and Values are a point-in-time snapshot, so a loop that writes to the dictionary ends.
+    // Enumerating the dictionary is live and may see the loop's own additions, maybe forever.
+    private static bool MutatesDictionary(
+        SemanticModel model,
+        ForEachStatementSyntax loop,
+        MemberAccessExpressionSyntax access,
+        CancellationToken ct)
+    {
+        if (model.GetOperation(loop.Statement, ct) is not { } body)
+            return false;
+
+        var dictionary = ReferencedSymbol(model.GetOperation(access.Expression, ct));
+        var dictionaryType = model.GetTypeInfo(access.Expression, ct).Type;
+
+        foreach (var operation in body.DescendantsAndSelf())
+        {
+            var instance = operation switch
+            {
+                IPropertyReferenceOperation { Property.IsIndexer: true } indexer when IsWritten(indexer) => indexer.Instance,
+                IInvocationOperation invocation when MutatingMethods.Contains(invocation.TargetMethod.Name) => invocation.Instance,
+                _ => null,
+            };
+
+            if (instance is null
+                || !SymbolEqualityComparer.Default.Equals(instance.Type, dictionaryType))
+            {
+                continue;
+            }
+
+            // When the dictionary is not a simple variable, any write to one of its type may be to it.
+            var target = ReferencedSymbol(instance);
+            if (dictionary is null || target is null || SymbolEqualityComparer.Default.Equals(dictionary, target))
+                return true;
+        }
+
+        return false;
+    }
+
+    private static bool IsWritten(IOperation operation) => operation.Parent switch
+    {
+        ISimpleAssignmentOperation assignment => assignment.Target == operation,
+        ICompoundAssignmentOperation compound => compound.Target == operation,
+        ICoalesceAssignmentOperation coalesce => coalesce.Target == operation,
+        IIncrementOrDecrementOperation => true,
+        _ => false,
+    };
+
+    private static ISymbol? ReferencedSymbol(IOperation? operation) => operation switch
+    {
+        ILocalReferenceOperation local => local.Local,
+        IParameterReferenceOperation parameter => parameter.Parameter,
+        IFieldReferenceOperation field => field.Field,
+        IPropertyReferenceOperation { Property.IsIndexer: false } property => property.Property,
+        _ => null,
+    };
 
     private static async Task<Document> ReplaceAsync(
         Document document,
