@@ -101,7 +101,7 @@ public sealed class UseStatePassingOverloadCodeFixProvider : CodeFixProvider
 
     private static ArgumentSyntax Argument(string expression, string? name, SyntaxTriviaList leading)
     {
-        var argument = SyntaxFactory.Argument(SyntaxFactory.IdentifierName(expression));
+        var argument = SyntaxFactory.Argument(SyntaxFactory.IdentifierName(Identifier(expression)));
         if (name is not null)
             argument = argument.WithNameColon(SyntaxFactory.NameColon(name).WithTrailingTrivia(SyntaxFactory.Space));
 
@@ -124,7 +124,7 @@ public sealed class UseStatePassingOverloadCodeFixProvider : CodeFixProvider
                 var list = SyntaxFactory.ParameterList(SyntaxFactory.SeparatedList(
                     [
                         parameter.WithoutTrivia(),
-                        SyntaxFactory.Parameter(SyntaxFactory.Identifier(captured)).WithLeadingTrivia(SyntaxFactory.Space),
+                        SyntaxFactory.Parameter(Identifier(captured)).WithLeadingTrivia(SyntaxFactory.Space),
                     ],
                     [SyntaxFactory.Token(SyntaxKind.CommaToken)]))
                     .WithCloseParenToken(SyntaxFactory.Token(SyntaxKind.CloseParenToken).WithTrailingTrivia(parameter.GetTrailingTrivia()));
@@ -144,7 +144,7 @@ public sealed class UseStatePassingOverloadCodeFixProvider : CodeFixProvider
 
             case ParenthesizedLambdaExpressionSyntax parenthesized when addParameter:
                 var parameters = parenthesized.ParameterList.Parameters;
-                var added = SyntaxFactory.Parameter(SyntaxFactory.Identifier(captured)).WithLeadingTrivia(SyntaxFactory.Space);
+                var added = SyntaxFactory.Parameter(Identifier(captured)).WithLeadingTrivia(SyntaxFactory.Space);
                 var open = parenthesized.ParameterList;
                 edited = parenthesized.WithParameterList(open.WithParameters(
                     SyntaxFactory.SeparatedList(
@@ -167,5 +167,11 @@ public sealed class UseStatePassingOverloadCodeFixProvider : CodeFixProvider
     }
 
     private static ParameterSyntax Renamed(ParameterSyntax parameter, string name) =>
-        parameter.WithIdentifier(SyntaxFactory.Identifier(name).WithTriviaFrom(parameter.Identifier));
+        parameter.WithIdentifier(Identifier(name).WithTriviaFrom(parameter.Identifier));
+
+    // The captured name comes from the symbol, without its '@'; a keyword needs it back to stay a name.
+    private static SyntaxToken Identifier(string name) =>
+        SyntaxFacts.GetKeywordKind(name) == SyntaxKind.None
+            ? SyntaxFactory.Identifier(name)
+            : SyntaxFactory.ParseToken("@" + name);
 }

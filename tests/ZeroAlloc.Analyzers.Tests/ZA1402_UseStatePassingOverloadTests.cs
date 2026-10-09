@@ -653,4 +653,221 @@ public class ZA1402_UseStatePassingOverloadTests
 
         await VerifyFix(source, fixedSource, "ConcurrentDictionary.GetOrAdd", "'s'");
     }
+
+    [Fact]
+    public async Task GetOrAddCapturingKeywordNamedVariable_EscapesTheName()
+    {
+        var source = """
+            using System.Collections.Concurrent;
+
+            class C
+            {
+                string M(ConcurrentDictionary<int, string> cache, string @event)
+                {
+                    return cache.GetOrAdd(1, {|#0:k => @event + k|});
+                }
+            }
+            """;
+
+        var fixedSource = """
+            using System.Collections.Concurrent;
+
+            class C
+            {
+                string M(ConcurrentDictionary<int, string> cache, string @event)
+                {
+                    return cache.GetOrAdd(1, static (k, @event) => @event + k, @event);
+                }
+            }
+            """;
+
+        await VerifyFix(source, fixedSource, "ConcurrentDictionary.GetOrAdd", "'event'");
+    }
+
+    [Fact]
+    public async Task QueueUserWorkItemCapturingKeywordNamedVariable_EscapesTheName()
+    {
+        var source = """
+            using System.Threading;
+
+            class Work { public void Run() { } }
+
+            class C
+            {
+                void M()
+                {
+                    var @class = new Work();
+                    ThreadPool.QueueUserWorkItem({|#0:_ => @class.Run()|});
+                }
+            }
+            """;
+
+        var fixedSource = """
+            using System.Threading;
+
+            class Work { public void Run() { } }
+
+            class C
+            {
+                void M()
+                {
+                    var @class = new Work();
+                    ThreadPool.QueueUserWorkItem(static @class => @class.Run(), @class, preferLocal: false);
+                }
+            }
+            """;
+
+        await VerifyFix(source, fixedSource, "ThreadPool.QueueUserWorkItem", "'class'");
+    }
+
+    [Fact]
+    public async Task DynamicCapture_ReportsWithoutFix()
+    {
+        // A dynamic state argument makes the call dynamically bound, and a lambda cannot be one of its arguments.
+        var source = """
+            using System.Collections.Concurrent;
+
+            class C
+            {
+                string M(ConcurrentDictionary<int, string> cache, dynamic prefix)
+                {
+                    return cache.GetOrAdd(1, {|#0:k => (string)prefix + k|});
+                }
+            }
+            """;
+
+        await VerifyFix(source, source, "ConcurrentDictionary.GetOrAdd", "'prefix'");
+    }
+
+    [Fact]
+    public async Task PointerCapture_ReportsWithoutFix()
+    {
+        // A pointer cannot be a type argument, so there is no TArg to pass it as.
+        var source = """
+            using System.Collections.Concurrent;
+
+            unsafe class C
+            {
+                string M(ConcurrentDictionary<int, string> cache, int* p)
+                {
+                    return cache.GetOrAdd(1, {|#0:k => (*p + k).ToString()|});
+                }
+            }
+            """;
+
+        var test = new Microsoft.CodeAnalysis.CSharp.Testing.CSharpCodeFixTest<
+            UseStatePassingOverloadAnalyzer, UseStatePassingOverloadCodeFixProvider, DefaultVerifier>
+        {
+            TestCode = source,
+            FixedCode = source,
+            ReferenceAssemblies = ReferenceAssemblies.Net.Net80,
+        };
+        test.SolutionTransforms.Add((solution, projectId) =>
+        {
+            var options = (Microsoft.CodeAnalysis.CSharp.CSharpCompilationOptions)solution.GetProject(projectId)!.CompilationOptions!;
+            return solution.WithProjectCompilationOptions(projectId, options.WithAllowUnsafe(true));
+        });
+        test.ExpectedDiagnostics.Add(Expected("ConcurrentDictionary.GetOrAdd", "'p'"));
+        await test.RunAsync();
+    }
+
+    [Fact]
+    public async Task CaptureThroughCalledLocalFunction_ReportsWithoutFix()
+    {
+        var source = """
+            using System.Collections.Concurrent;
+
+            class C
+            {
+                string M(ConcurrentDictionary<int, string> cache, string prefix)
+                {
+                    string Helper(int x) => prefix + x;
+                    return cache.GetOrAdd(1, {|#0:k => Helper(k)|});
+                }
+            }
+            """;
+
+        await VerifyFix(source, source, "ConcurrentDictionary.GetOrAdd", "'prefix'");
+    }
+
+    [Fact]
+    public async Task CaptureThroughLocalFunctionMethodGroup_ReportsWithoutFix()
+    {
+        var source = """
+            using System;
+            using System.Collections.Concurrent;
+
+            class C
+            {
+                static string Apply(Func<int, string> f, int k) => f(k);
+
+                string M(ConcurrentDictionary<int, string> cache, string prefix)
+                {
+                    string Helper(int x) => prefix + x;
+                    return cache.GetOrAdd(1, {|#0:k => Apply(Helper, k)|});
+                }
+            }
+            """;
+
+        await VerifyFix(source, source, "ConcurrentDictionary.GetOrAdd", "'prefix'");
+    }
+
+    [Fact]
+    public async Task LocalFunctionReadingField_ReportsThis()
+    {
+        var source = """
+            using System.Collections.Concurrent;
+
+            class C
+            {
+                private int _offset;
+
+                string M(ConcurrentDictionary<int, string> cache)
+                {
+                    string Helper(int x) { var y = x + _offset; return y.ToString(); }
+                    return cache.GetOrAdd(1, {|#0:k => Helper(k)|});
+                }
+            }
+            """;
+
+        await VerifyFix(source, source, "ConcurrentDictionary.GetOrAdd", "'this'");
+    }
+
+    [Fact]
+    public async Task MutuallyRecursiveLocalFunctions_Terminate()
+    {
+        var source = """
+            using System.Collections.Concurrent;
+
+            class C
+            {
+                string M(ConcurrentDictionary<int, string> cache, string prefix, string suffix)
+                {
+                    string Even(int x) => x == 0 ? prefix : Odd(x - 1);
+                    string Odd(int x) => x == 0 ? suffix : Even(x - 1);
+                    return cache.GetOrAdd(1, {|#0:k => Even(k)|});
+                }
+            }
+            """;
+
+        await VerifyFix(source, source, "ConcurrentDictionary.GetOrAdd", "'prefix', 'suffix'");
+    }
+
+    [Fact]
+    public async Task TaskOfTFactoryStartNew_ReportsWithoutFix()
+    {
+        var source = """
+            using System.Threading.Tasks;
+
+            class C
+            {
+                Task<string> M(string prefix)
+                {
+                    return Task<string>.Factory.StartNew({|#0:() => prefix + "x"|});
+                }
+            }
+            """;
+
+        await VerifyFix(source, source, "TaskFactory.StartNew", "'prefix'");
+    }
 }

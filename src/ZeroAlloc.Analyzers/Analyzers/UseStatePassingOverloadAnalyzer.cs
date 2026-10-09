@@ -4,6 +4,7 @@ using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Diagnostics;
 using Microsoft.CodeAnalysis.Operations;
+using Microsoft.CodeAnalysis.Text;
 
 namespace ZeroAlloc.Analyzers;
 
@@ -35,6 +36,7 @@ public sealed class UseStatePassingOverloadAnalyzer : DiagnosticAnalyzer
         ("System.Threading.ThreadPool", "QueueUserWorkItem", ["callBack"], "state", QueueUserWorkItemFix),
         ("System.Threading.ThreadPool", "UnsafeQueueUserWorkItem", ["callBack"], "state", null),
         ("System.Threading.Tasks.TaskFactory", "StartNew", ["action", "function"], "state", null),
+        ("System.Threading.Tasks.TaskFactory`1", "StartNew", ["function"], "state", null),
         ("System.String", "Create", ["action"], "state", null),
     ];
 
@@ -80,8 +82,7 @@ public sealed class UseStatePassingOverloadAnalyzer : DiagnosticAnalyzer
     {
         var invocation = (IInvocationOperation)context.Operation;
         var method = invocation.TargetMethod;
-        var api = apis.FirstOrDefault(a => a.Method == method.Name
-            && SymbolEqualityComparer.Default.Equals(method.ContainingType.OriginalDefinition, a.Type));
+        var api = Find(apis, method);
         if (api is null)
             return;
 
@@ -120,16 +121,66 @@ public sealed class UseStatePassingOverloadAnalyzer : DiagnosticAnalyzer
         }
     }
 
+    // A plain loop: a lambda here would allocate a closure for every invocation in the compilation.
+    private static Api? Find(ImmutableArray<Api> apis, IMethodSymbol method)
+    {
+        foreach (var api in apis)
+        {
+            if (api.Method == method.Name
+                && SymbolEqualityComparer.Default.Equals(method.ContainingType.OriginalDefinition, api.Type))
+            {
+                return api;
+            }
+        }
+
+        return null;
+    }
+
     // Locals and parameters used inside the lambda but declared outside it, in order of first use,
     // plus whether it uses 'this'. Constants are not captured, and a primary-constructor parameter
-    // used outside the constructor's own initializers is a field of 'this' in disguise.
+    // used outside the constructor's own initializers is a field of 'this' in disguise. A call to a
+    // non-static local function, or a method group of one, makes the lambda's closure capture what
+    // that local function captures, so its body is walked too.
     private static Captured Captures(IAnonymousFunctionOperation lambda)
     {
-        var span = lambda.Syntax.Span;
-        var variables = ImmutableArray.CreateBuilder<ISymbol>();
-        var capturesThis = false;
+        var walk = new CaptureWalk(lambda);
+        walk.Visit(lambda.Body, [lambda.Syntax.Span]);
+        return new Captured(walk.Variables.ToImmutable(), walk.CapturesThis);
+    }
 
-        foreach (var operation in lambda.Body.Descendants())
+    private sealed class CaptureWalk(IAnonymousFunctionOperation lambda)
+    {
+        private readonly HashSet<IMethodSymbol> _visited = new(SymbolEqualityComparer.Default);
+
+        public ImmutableArray<ISymbol>.Builder Variables { get; } = ImmutableArray.CreateBuilder<ISymbol>();
+
+        public bool CapturesThis { get; private set; }
+
+        // 'scopes' holds the spans of the lambda and of each local function on the current call path:
+        // a variable declared in one of them belongs to that frame, not to the lambda's closure.
+        public void Visit(IOperation body, ImmutableArray<TextSpan> scopes)
+        {
+            foreach (var operation in body.Descendants())
+            {
+                Inspect(operation, scopes);
+
+                var target = operation switch
+                {
+                    IInvocationOperation invocation => invocation.TargetMethod,
+                    IMethodReferenceOperation reference => reference.Method,
+                    _ => null,
+                };
+
+                if (target is { MethodKind: MethodKind.LocalFunction, IsStatic: false }
+                    && _visited.Add(target.OriginalDefinition)
+                    && LocalFunctionBody(target.OriginalDefinition) is { Body: { } localBody } localFunction)
+                {
+                    Visit(localBody, scopes.Add(localFunction.Syntax.Span));
+                }
+            }
+        }
+
+        private void Inspect(IOperation operation, ImmutableArray<TextSpan> scopes)
         {
             ISymbol? symbol = operation switch
             {
@@ -143,26 +194,56 @@ public sealed class UseStatePassingOverloadAnalyzer : DiagnosticAnalyzer
             if (operation is IInstanceReferenceOperation { ReferenceKind: InstanceReferenceKind.ContainingTypeInstance } instance
                 && !IsLocalFunctionReceiver(instance))
             {
-                capturesThis = true;
+                CapturesThis = true;
             }
 
             if (symbol is IParameterSymbol { ContainingSymbol: IMethodSymbol { MethodKind: MethodKind.Constructor } constructor }
                 && constructor.DeclaringSyntaxReferences.Any(r => r.GetSyntax() is TypeDeclarationSyntax)
                 && !IsInsideInitializer(lambda))
             {
-                capturesThis = true;
-                continue;
+                CapturesThis = true;
+                return;
             }
 
             if (symbol is not null
-                && !symbol.DeclaringSyntaxReferences.Any(r => span.Contains(r.Span))
-                && !variables.Contains(symbol, SymbolEqualityComparer.Default))
+                && !IsDeclaredIn(symbol, scopes)
+                && !Variables.Contains(symbol, SymbolEqualityComparer.Default))
             {
-                variables.Add(symbol);
+                Variables.Add(symbol);
             }
         }
 
-        return new Captured(variables.ToImmutable(), capturesThis);
+        private static bool IsDeclaredIn(ISymbol symbol, ImmutableArray<TextSpan> scopes)
+        {
+            foreach (var reference in symbol.DeclaringSyntaxReferences)
+            {
+                foreach (var scope in scopes)
+                {
+                    if (scope.Contains(reference.Span))
+                        return true;
+                }
+            }
+
+            return false;
+        }
+
+        private ILocalFunctionOperation? LocalFunctionBody(IMethodSymbol localFunction)
+        {
+            var semanticModel = lambda.SemanticModel;
+            if (semanticModel is null)
+                return null;
+
+            foreach (var reference in localFunction.DeclaringSyntaxReferences)
+            {
+                if (reference.SyntaxTree == semanticModel.SyntaxTree
+                    && semanticModel.GetOperation(reference.GetSyntax()) is ILocalFunctionOperation operation)
+                {
+                    return operation;
+                }
+            }
+
+            return null;
+        }
     }
 
     private static bool IsLocalFunctionReceiver(IInstanceReferenceOperation instance) => instance.Parent switch
@@ -203,6 +284,7 @@ public sealed class UseStatePassingOverloadAnalyzer : DiagnosticAnalyzer
             || languageVersion.MapSpecifiedToEffectiveVersion() < LanguageVersion.CSharp9
             || captures.Variables[0] is not (ILocalSymbol { IsRef: false } or IParameterSymbol { RefKind: RefKind.None })
             || IsMutableStruct(captures.Variables[0])
+            || CannotBeTypeArgument(captures.Variables[0])
             || !IsImplicitlyTyped(lambda.Syntax)
             || CallsCapturingLocalFunction(lambda)
             || IsWrittenAnywhere(invocation, captures.Variables[0]))
@@ -220,18 +302,21 @@ public sealed class UseStatePassingOverloadAnalyzer : DiagnosticAnalyzer
     }
 
     // A state argument is a copy: for a struct that could change, a closure shares the one variable.
-    private static bool IsMutableStruct(ISymbol variable)
-    {
-        var type = variable switch
-        {
-            ILocalSymbol local => local.Type,
-            IParameterSymbol parameter => parameter.Type,
-            _ => null,
-        };
-
-        return type is { IsValueType: true, SpecialType: SpecialType.None, TypeKind: not TypeKind.Enum }
+    private static bool IsMutableStruct(ISymbol variable) =>
+        TypeOf(variable) is { IsValueType: true, SpecialType: SpecialType.None, TypeKind: not TypeKind.Enum } type
             && !type.IsReadOnly;
-    }
+
+    // A dynamic state argument makes the whole call dynamically bound, which rejects a lambda argument,
+    // and a pointer cannot be the state's type argument at all.
+    private static bool CannotBeTypeArgument(ISymbol variable) =>
+        TypeOf(variable)?.TypeKind is TypeKind.Dynamic or TypeKind.Pointer or TypeKind.FunctionPointer;
+
+    private static ITypeSymbol? TypeOf(ISymbol variable) => variable switch
+    {
+        ILocalSymbol local => local.Type,
+        IParameterSymbol parameter => parameter.Type,
+        _ => null,
+    };
 
     // A static lambda cannot call a local function that captures, and a non-static one may.
     private static bool CallsCapturingLocalFunction(IAnonymousFunctionOperation lambda)
