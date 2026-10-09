@@ -282,8 +282,8 @@ The tables below list all 63 rules grouped by category. Rule IDs link to the cor
 | [ZA1703](rules/aot.md#za1703) | Avoid constructing generic types or methods at runtime | Info | Any |
 | [ZA1704](rules/aot.md#za1704) | Avoid reflection-based serializers | Info | Any |
 | [ZA1706](rules/aot.md#za1706) | Mark libraries as AOT-compatible | Info | net8.0 |
-| [ZA1707](rules/aot.md#za1707) | Use the configuration-binding source generator | Info | Any (Binder 8.0+) |
-| [ZA1708](rules/aot.md#za1708) | Use a source-generated options validator | Info | Any (Options 8.0+) |
+| [ZA1707](rules/aot.md#za1707) | Use the configuration-binding source generator | Info | Any (Binder 8.0+, C# 12) |
+| [ZA1708](rules/aot.md#za1708) | Use a source-generated options validator | Info | Any (Options 8.0+, C# 8) |
 | [ZA1709](rules/aot.md#za1709) | Avoid dynamic dispatch | Info | Any |
 
 > `ZA1705` (avoid resolving types or assemblies by name) is disabled by default — see [Native AOT rules](rules/aot.md#za1705) to opt in. All ZA17xx rules stand down automatically when the SDK's own AOT analyzer is enabled.

@@ -223,7 +223,7 @@ An explicit IsAotCompatible=false also stands the rule down, because it is a dec
 2. `EnableConfigurationBindingGenerator` is not `true`.
 3. The AOT stand-down does not apply. `PublishAot` turns the generator on by itself, and `IsAotCompatible` turns on IL2026.
 
-Calls whose bound type is only known at run time are not reported, because the generator cannot replace them: a `System.Type` argument that is not a typeof expression, or `Bind` with an `object`-typed instance. The rule reports only when Microsoft.Extensions.Configuration.Binder 8.0 or later is referenced.
+Calls whose bound type is only known at run time are not reported, because the generator cannot replace them: a `System.Type` argument that is not a typeof expression, or `Bind` with an `object`-typed instance. Calls the generator refuses with warning SYSLIB1104 are not reported either. The bound type is the method's type argument, the typeof operand, or the static type of the instance `Bind` fills; the call is skipped when that type, or any type argument within it at any depth, is a type parameter, or when it, a containing type or a type argument within it is private, protected or private protected. The rule reports only when Microsoft.Extensions.Configuration.Binder 8.0 or later is referenced, and only from C# 12, because the generator needs interceptors and emits error SYSLIB1102 below it.
 
 **Message:** `"'{0}' binds configuration with reflection; set <EnableConfigurationBindingGenerator>true</EnableConfigurationBindingGenerator> to generate the binding code"`
 
@@ -231,7 +231,7 @@ Calls whose bound type is only known at run time are not reported, because the g
 
 **Problem:** `ValidateDataAnnotations()` validates options with reflection.
 
-**Detection:** a call to `OptionsBuilderDataAnnotationsExtensions.ValidateDataAnnotations`, unless the AOT stand-down applies. The rule reports only where `[OptionsValidator]` exists, that is Microsoft.Extensions.Options 8.0 or later.
+**Detection:** a call to `OptionsBuilderDataAnnotationsExtensions.ValidateDataAnnotations`, unless the AOT stand-down applies. The rule reports only where `[OptionsValidator]` exists, that is Microsoft.Extensions.Options 8.0 or later, and only from C# 8, because the generator emits error SYSLIB1216 below it.
 
 **Message:** `"'ValidateDataAnnotations' validates with reflection; use an [OptionsValidator] source-generated validator instead"`
 
@@ -241,9 +241,9 @@ Calls whose bound type is only known at run time are not reported, because the g
 
 **Detection:** a dynamic invocation, member reference, indexer access or object creation, unless the AOT stand-down applies. Only the outermost dynamic operation of an expression is reported, so `d.A.B(c)` gives one diagnostic. A declaration typed `dynamic` that is never dispatched on is not reported.
 
-Besides the four dynamic operation kinds, binary and unary operators, compound assignments, increments and decrements on dynamic operands, and conversions from dynamic to a type other than object or dynamic, are reported too, because each goes through the runtime binder. The outermost-only rule applies across all of them.
+Besides the four dynamic operation kinds, binary and unary operators, compound assignments, increments and decrements on dynamic operands, and conversions from dynamic to a type other than object or dynamic, and `await` on a dynamic operand, are reported too, because each goes through the runtime binder. An `as` conversion is a type test and is not reported. The outermost-only rule applies across all of them.
 
-**Message:** `"'dynamic' dispatch uses the runtime binder, which is not supported under NativeAOT"`
+**Message:** `"'dynamic' dispatch uses the runtime binder, which is not supported under Native AOT"`
 
 ---
 

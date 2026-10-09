@@ -164,7 +164,7 @@ or turn the rule off in `.editorconfig`: `dotnet_diagnostic.ZA1706.severity = no
 
 ## ZA1707 — Use the configuration-binding source generator {#za1707}
 
-> **Severity**: Info | **Min TFM**: Any (needs Microsoft.Extensions.Configuration.Binder 8.0 or later) | **Code fix**: No
+> **Severity**: Info | **Min TFM**: Any (Binder 8.0+, C# 12) | **Code fix**: No
 
 ### Why
 
@@ -172,7 +172,9 @@ or turn the rule off in `.editorconfig`: `dotnet_diagnostic.ZA1706.severity = no
 
 `PublishAot` turns the generator on automatically, so the rule stays silent there, and it also stays silent once the SDK's own AOT analyzer is enabled.
 
-Calls that bind a type known only at run time, such as `Get(Type)` with a non-`typeof` argument or `Bind(object)`, are not reported because the generator cannot replace them.
+Calls that bind a type known only at run time, such as `Get(Type)` with a non-`typeof` argument or `Bind(object)`, are not reported because the generator cannot replace them. Neither are calls the generator refuses with warning SYSLIB1104: a bound type that is or contains a generic type parameter, such as `Get<T>()` or `Get<List<T>>()` inside a generic method, and a bound type that is, sits inside or contains a private or protected type, which the generated code cannot name.
+
+The generator intercepts the calls, which needs C# 12; below it the generator fails the build with error SYSLIB1102. The rule therefore reports only from C# 12, and only with Microsoft.Extensions.Configuration.Binder 8.0 or later.
 
 ### Fix
 
@@ -193,11 +195,13 @@ Calls that bind a type known only at run time, such as `Get(Type)` with a non-`t
 
 ## ZA1708 — Use a source-generated options validator {#za1708}
 
-> **Severity**: Info | **Min TFM**: Any (Options 8.0+) | **Code fix**: No
+> **Severity**: Info | **Min TFM**: Any (Options 8.0+, C# 8) | **Code fix**: No
 
 ### Why
 
-`ValidateDataAnnotations()` reads your options type's `[Required]`, `[Range]` and other attributes with reflection every time the options are validated. That is not trim-safe, and it costs reflection at startup. Since .NET 8, the `[OptionsValidator]` source generator writes the same checks as plain code: declare a `partial` validator class for your options type and register it instead. The rule only reports where `[OptionsValidator]` is available, that is with Microsoft.Extensions.Options 8.0 or later.
+`ValidateDataAnnotations()` reads your options type's `[Required]`, `[Range]` and other attributes with reflection every time the options are validated. That is not trim-safe, and it costs reflection at startup. Since .NET 8, the `[OptionsValidator]` source generator writes the same checks as plain code: declare a `partial` validator class for your options type and register it instead. The rule only reports where `[OptionsValidator]` is available, that is with Microsoft.Extensions.Options 8.0 or later, and from C# 8, because below it the generator fails the build with error SYSLIB1216.
+
+The options type keeps its DataAnnotations attributes, because the generator reads them to write the checks. `.ValidateOnStart()` still works with a registered validator, so keep it if you validate at startup.
 
 ### Before
 
@@ -211,6 +215,8 @@ services.AddOptions<SmtpOptions>()
 ### After
 
 ```csharp
+using Microsoft.Extensions.Options;
+
 // ✓ the generator writes the validation code
 [OptionsValidator]
 public partial class SmtpOptionsValidator : IValidateOptions<SmtpOptions>;
@@ -236,13 +242,16 @@ services.AddSingleton<IValidateOptions<SmtpOptions>, SmtpOptionsValidator>();
 
 Every operation on a `dynamic` value is bound at run time by the C# runtime binder. That covers member access, method calls, indexers, operators, and conversions back to a static type. The binder inspects the object with reflection and generates code on the fly, which Native AOT cannot do and which trimming breaks. Dynamic dispatch is also far slower than a static call and allocates on every operation.
 
-The rule reports each expression that dispatches dynamically once, at its outermost dynamic operation. Declaring, storing or returning a `dynamic` value is not reported, because none of that calls the binder.
+The rule reports each expression that dispatches dynamically once, at its outermost dynamic operation. That includes `await` on a dynamic value, `foreach` over one, and a dynamic value used as a condition.
+
+Declaring or storing a `dynamic` value is not reported, because that does not call the binder. Returning one is not reported when the method's return type is `dynamic` or `object`. Returning it through any other static return type converts it to that type, and that conversion goes through the binder, so it is reported. An `is` or `as` type test on a dynamic value is not reported either: both check the run-time type without the binder.
 
 ### Before
 
 ```csharp
-// ❌ every line goes through the runtime binder
+// storing the result in a dynamic local does not call the binder
 dynamic response = JsonConvert.DeserializeObject(json);
+// ❌ the runtime binder resolves user, then name, then the conversion to string
 string name = response.user.name;
 ```
 
