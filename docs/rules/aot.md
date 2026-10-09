@@ -223,3 +223,38 @@ services.AddSingleton<IValidateOptions<SmtpOptions>, SmtpOptionsValidator>();
 #pragma warning disable ZA1708
 // or in .editorconfig: dotnet_diagnostic.ZA1708.severity = none
 ```
+
+---
+
+## ZA1709 — Avoid dynamic dispatch {#za1709}
+
+> **Severity**: Info | **Min TFM**: Any | **Code fix**: No
+
+### Why
+
+Every operation on a `dynamic` value is bound at run time by the C# runtime binder. That covers member access, method calls, indexers, operators, and conversions back to a static type. The binder inspects the object with reflection and generates code on the fly, which Native AOT cannot do and which trimming breaks. Dynamic dispatch is also far slower than a static call and allocates on every operation.
+
+The rule reports each expression that dispatches dynamically once, at its outermost dynamic operation. Declaring, storing or returning a `dynamic` value is not reported, because none of that calls the binder.
+
+### Before
+
+```csharp
+// ❌ every line goes through the runtime binder
+dynamic response = JsonConvert.DeserializeObject(json);
+string name = response.user.name;
+```
+
+### After
+
+```csharp
+// ✓ a typed model binds at compile time
+var response = JsonSerializer.Deserialize(json, AppJsonContext.Default.Response);
+string name = response.User.Name;
+```
+
+### Suppression
+
+```csharp
+#pragma warning disable ZA1709
+// or in .editorconfig: dotnet_diagnostic.ZA1709.severity = none
+```
