@@ -99,3 +99,12 @@ ZA0111  | Performance.Collections | Info     | AvoidConcurrentDictionarySnapshot
 ZA0212  | Performance.Strings     | Info     | UseTryParseAnalyzer
 ZA0211  | Performance.Strings     | Info     | UseSpanSplitAnalyzer
 ZA0110  | Performance.Collections | Info     | PreferParamsSpanAnalyzer
+
+## Release 1.7.0
+
+### New Rules
+
+Rule ID | Category                | Severity | Notes
+--------|-------------------------|----------|----------------------------------------
+ZA1503  | Performance.ValueTypes  | Info     | ImplementEquatableOnStructKeyAnalyzer
+ZA1402  | Performance.Delegates   | Info     | UseStatePassingOverloadAnalyzer
