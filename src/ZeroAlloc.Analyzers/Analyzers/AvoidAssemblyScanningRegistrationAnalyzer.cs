@@ -10,8 +10,8 @@ namespace ZeroAlloc.Analyzers;
 /// reflection, which trimming and Native AOT break. Matches on the assembly that declares the
 /// called method and on the method name, not on type names, because these libraries have moved
 /// their extensions between types and packages across major versions. Stands down per call only
-/// when the SDK's AOT analyzer is on and the API carries a trim or dynamic-code annotation, since
-/// the SDK then reports it already.
+/// when the SDK analyzer that reports the API's annotation is on: the trim analyzer for
+/// [RequiresUnreferencedCode], the AOT analyzer for [RequiresDynamicCode].
 /// </summary>
 [DiagnosticAnalyzer(LanguageNames.CSharp)]
 public sealed class AvoidAssemblyScanningRegistrationAnalyzer : DiagnosticAnalyzer
