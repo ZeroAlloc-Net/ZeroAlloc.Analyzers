@@ -33,6 +33,8 @@ public class ZA1706_MarkLibraryAotCompatibleTests
     [Theory]
     [InlineData("net8.0")]
     [InlineData("net9.0")]
+    [InlineData("net10.0")]
+    [InlineData("net8.0-windows")]
     public async Task Net8OrLaterLibraryWithoutAotProperty_Reports(string targetFramework)
     {
         await CSharpAnalyzerVerifier<MarkLibraryAotCompatibleAnalyzer>.VerifyAnalyzerWithPropertiesAsync(
@@ -56,6 +58,7 @@ public class ZA1706_MarkLibraryAotCompatibleTests
     [InlineData("PublishAot", "true")]
     [InlineData("EnableAotAnalyzer", "true")]
     [InlineData("IsTestProject", "true")]
+    [InlineData("IsTestProject", "True")]
     public async Task AlreadyDecidedOrTestProject_NoDiagnostic(string name, string value)
     {
         // An explicit IsAotCompatible=false is a deliberate opt-out, so it also stands the rule down.
@@ -63,10 +66,20 @@ public class ZA1706_MarkLibraryAotCompatibleTests
             Library, ReferenceAssemblies.Net.Net80, Properties("net8.0", (name, value)), []);
     }
 
-    [Fact]
-    public async Task Application_NoDiagnostic()
+    [Theory]
+    [InlineData(OutputKind.ConsoleApplication)]
+    [InlineData(OutputKind.WindowsApplication)]
+    public async Task Application_NoDiagnostic(OutputKind outputKind)
     {
         await CSharpAnalyzerVerifier<MarkLibraryAotCompatibleAnalyzer>.VerifyAnalyzerWithPropertiesAsync(
-            App, ReferenceAssemblies.Net.Net80, Properties("net8.0"), [], OutputKind.ConsoleApplication);
+            App, ReferenceAssemblies.Net.Net80, Properties("net8.0"), [], outputKind);
+    }
+
+    [Fact]
+    public async Task TargetFrameworkNotVisible_NoDiagnostic()
+    {
+        // Without the buildTransitive props the analyzer cannot tell the target framework.
+        await CSharpAnalyzerVerifier<MarkLibraryAotCompatibleAnalyzer>.VerifyAnalyzerWithPropertiesAsync(
+            Library, ReferenceAssemblies.Net.Net80, new Dictionary<string, string>(), []);
     }
 }
