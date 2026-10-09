@@ -61,9 +61,10 @@ public sealed class UseReadOnlySpanForConstantTableAnalyzer : DiagnosticAnalyzer
             start.RegisterOperationAction(context =>
             {
                 var reference = (IFieldReferenceOperation)context.Operation;
-                if (reference.Field.IsStatic && reference.Field.Type is IArrayTypeSymbol
+                // Check the cheap candidacy first; most static array fields are never candidates.
+                if (IsCandidateField(reference.Field.OriginalDefinition, hasCreateSpan, hasFriendAssemblies)
                     && (!ReadOnlySpanUse.IsCompatible(reference, readOnlySpan)
-                        || IsInAsyncOrIterator(reference, context.ContainingSymbol)
+                        || AsyncOrIterator.IsInAsyncOrIterator(reference, context.ContainingSymbol)
                         || IsInExpressionTree(reference, expressionTreeBase)))
                 {
                     disqualified[reference.Field.OriginalDefinition] = true;
@@ -120,28 +121,6 @@ public sealed class UseReadOnlySpanForConstantTableAnalyzer : DiagnosticAnalyzer
             _ => false,
         };
     }
-
-    // foreach over a ReadOnlySpan<T> cannot cross an await or a yield.
-    private static bool IsInAsyncOrIterator(IOperation reference, ISymbol containingSymbol)
-    {
-        for (var current = reference.Parent; current is not null; current = current.Parent)
-        {
-            switch (current)
-            {
-                case IAnonymousFunctionOperation lambda:
-                    return lambda.Symbol.IsAsync;
-                case ILocalFunctionOperation local:
-                    return local.Symbol.IsAsync || ContainsYield(local.Syntax);
-            }
-        }
-
-        return containingSymbol is IMethodSymbol method
-            && (method.IsAsync || method.DeclaringSyntaxReferences.Any(r => ContainsYield(r.GetSyntax())));
-    }
-
-    private static bool ContainsYield(SyntaxNode function) =>
-        function.DescendantNodes(node => node == function || node is not (AnonymousFunctionExpressionSyntax or LocalFunctionStatementSyntax))
-            .OfType<YieldStatementSyntax>().Any();
 
     // An expression tree cannot call a property that returns a ReadOnlySpan<T>.
     private static bool IsInExpressionTree(IOperation reference, INamedTypeSymbol? lambdaExpression)

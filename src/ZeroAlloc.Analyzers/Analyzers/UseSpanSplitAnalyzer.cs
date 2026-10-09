@@ -1,5 +1,6 @@
 using System.Collections.Immutable;
 using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.Diagnostics;
 using Microsoft.CodeAnalysis.Operations;
 
@@ -28,11 +29,13 @@ public sealed class UseSpanSplitAnalyzer : DiagnosticAnalyzer
             if (start.Compilation.GetTypeByMetadataName("System.MemoryExtensions+SpanSplitEnumerator`1") is null)
                 return;
 
-            start.RegisterOperationAction(AnalyzeForEach, OperationKind.Loop);
+            // Before C# 13 a ref struct local is not allowed in an async method or an iterator.
+            var refStructLocalsInAsync = start.Compilation is CSharpCompilation { LanguageVersion: >= LanguageVersion.CSharp13 };
+            start.RegisterOperationAction(context => AnalyzeForEach(context, refStructLocalsInAsync), OperationKind.Loop);
         });
     }
 
-    private static void AnalyzeForEach(OperationAnalysisContext context)
+    private static void AnalyzeForEach(OperationAnalysisContext context, bool refStructLocalsInAsync)
     {
         if (context.Operation is not IForEachLoopOperation loop)
             return;
@@ -61,7 +64,16 @@ public sealed class UseSpanSplitAnalyzer : DiagnosticAnalyzer
         var noOptions = options.ArgumentKind == ArgumentKind.DefaultValue
             || options.Value.ConstantValue is { HasValue: true, Value: 0 };
 
-        if (separatorIsSupported && noOptions)
-            context.ReportDiagnostic(Diagnostic.Create(Rule, split.Syntax.GetLocation(), receiver.Syntax.ToString()));
+        if (!separatorIsSupported || !noOptions)
+            return;
+
+        // The span enumerator is a ref struct, so it cannot be live across an await or a yield.
+        if (AsyncOrIterator.ContainsAwaitOrYield(loop.Body)
+            || !refStructLocalsInAsync && AsyncOrIterator.IsInAsyncOrIterator(loop, context.ContainingSymbol))
+        {
+            return;
+        }
+
+        context.ReportDiagnostic(Diagnostic.Create(Rule, split.Syntax.GetLocation(), receiver.Syntax.ToString()));
     }
 }
