@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.8.0](https://github.com/ZeroAlloc-Net/ZeroAlloc.Analyzers/compare/v1.7.0...v1.8.0) (2026-10-09)
+
+
+### Features
+
+* add ZA1706 to report libraries that never set IsAotCompatible ([77249c7](https://github.com/ZeroAlloc-Net/ZeroAlloc.Analyzers/commit/77249c76cdb536ef38ed781f934ae5cbeb4f9ac5))
+* add ZA1707 to suggest the configuration-binding source generator ([77249c7](https://github.com/ZeroAlloc-Net/ZeroAlloc.Analyzers/commit/77249c76cdb536ef38ed781f934ae5cbeb4f9ac5))
+* add ZA1708 to suggest OptionsValidator over ValidateDataAnnotations ([77249c7](https://github.com/ZeroAlloc-Net/ZeroAlloc.Analyzers/commit/77249c76cdb536ef38ed781f934ae5cbeb4f9ac5))
+* add ZA1709 to report dynamic dispatch ([77249c7](https://github.com/ZeroAlloc-Net/ZeroAlloc.Analyzers/commit/77249c76cdb536ef38ed781f934ae5cbeb4f9ac5))
+
 ## [1.7.0](https://github.com/ZeroAlloc-Net/ZeroAlloc.Analyzers/compare/v1.6.0...v1.7.0) (2026-10-09)
 
 
