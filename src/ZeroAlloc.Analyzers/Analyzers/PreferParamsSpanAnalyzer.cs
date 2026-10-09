@@ -48,6 +48,7 @@ public sealed class PreferParamsSpanAnalyzer : DiagnosticAnalyzer
                 && attribute.ContainingNamespace.ToDisplayString() == "System.Runtime.CompilerServices");
 
             var expressionTreeBase = start.Compilation.GetTypeByMetadataName("System.Linq.Expressions.LambdaExpression");
+            var attributeBase = start.Compilation.GetTypeByMetadataName("System.Attribute");
 
             var candidates = new ConcurrentDictionary<IMethodSymbol, bool>(SymbolEqualityComparer.Default);
 
@@ -87,6 +88,10 @@ public sealed class PreferParamsSpanAnalyzer : DiagnosticAnalyzer
                 {
                     foreach (var member in iface.GetMembers().OfType<IMethodSymbol>())
                     {
+                        // Only a method with a params array can be a candidate, so skip the costly lookup otherwise.
+                        if (!HasParamsArray(member))
+                            continue;
+
                         if (type.FindImplementationForInterfaceMember(member) is IMethodSymbol implementation)
                             excluded[implementation.OriginalDefinition] = true;
                     }
@@ -96,7 +101,7 @@ public sealed class PreferParamsSpanAnalyzer : DiagnosticAnalyzer
             start.RegisterOperationBlockAction(context =>
             {
                 if (context.OwningSymbol is IMethodSymbol method
-                    && IsCandidate(method)
+                    && IsCandidate(method, attributeBase)
                     && !method.DeclaringSyntaxReferences.Any(reference => GeneratedCode.IsGenerated(reference.SyntaxTree))
                     && UsesAreSpanCompatible(context.OperationBlocks, method.Parameters[method.Parameters.Length - 1], readOnlySpan))
                 {
@@ -121,7 +126,7 @@ public sealed class PreferParamsSpanAnalyzer : DiagnosticAnalyzer
                         parameter.Locations[0],
                         properties,
                         parameter.Name,
-                        method.Name,
+                        method.MethodKind == MethodKind.Constructor ? method.ContainingType.Name : method.Name,
                         ((IArrayTypeSymbol)parameter.Type).ElementType.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat),
                         exposed ? ExposedSuffix : string.Empty));
                 }
@@ -129,14 +134,14 @@ public sealed class PreferParamsSpanAnalyzer : DiagnosticAnalyzer
         });
     }
 
-    private static bool IsCandidate(IMethodSymbol method)
+    private static bool HasParamsArray(IMethodSymbol method) =>
+        !method.Parameters.IsEmpty
+        && method.Parameters[method.Parameters.Length - 1] is { IsParams: true, Type: IArrayTypeSymbol { Rank: 1 } };
+
+    private static bool IsCandidate(IMethodSymbol method, INamedTypeSymbol? attributeBase)
     {
-        if (method.MethodKind is not (MethodKind.Ordinary or MethodKind.Constructor)
-            || method.Parameters.IsEmpty
-            || method.Parameters[method.Parameters.Length - 1] is not { IsParams: true, Type: IArrayTypeSymbol { Rank: 1 } })
-        {
+        if (method.MethodKind is not (MethodKind.Ordinary or MethodKind.Constructor) || !HasParamsArray(method))
             return false;
-        }
 
         // A primary constructor parameter is captured by member bodies this rule does not scan.
         if (method.MethodKind == MethodKind.Constructor
@@ -154,7 +159,53 @@ public sealed class PreferParamsSpanAnalyzer : DiagnosticAnalyzer
             return false;
         }
 
-        return true;
+        // A params span is implicitly scoped, so it cannot leave the method through the return value,
+        // a ref or out parameter of a ref struct type, or the implicit ref 'this' of a ref struct.
+        if (method.ReturnsByRef || method.ReturnsByRefReadonly || method.ReturnType.IsRefLikeType
+            || !method.IsStatic && method.ContainingType.IsRefLikeType
+            || method.Parameters.Any(p => p.RefKind is RefKind.Ref or RefKind.Out && p.Type.IsRefLikeType))
+        {
+            return false;
+        }
+
+        // Attribute arguments cannot bind to a span parameter.
+        if (InheritsFrom(method.ContainingType, attributeBase))
+            return false;
+
+        // A new signature could clash with an overload, or change which overload callers bind to.
+        return !HasOverload(method);
+    }
+
+    private static bool HasOverload(IMethodSymbol method)
+    {
+        // Constructors are not inherited, so only the containing type's own constructors are overloads.
+        for (var type = method.ContainingType; type is not null; type = type.BaseType)
+        {
+            if (type.GetMembers(method.Name).Any(member =>
+                    member is IMethodSymbol && !SymbolEqualityComparer.Default.Equals(member, method)))
+            {
+                return true;
+            }
+
+            if (method.MethodKind == MethodKind.Constructor)
+                break;
+        }
+
+        return false;
+    }
+
+    private static bool InheritsFrom(INamedTypeSymbol? type, INamedTypeSymbol? baseType)
+    {
+        if (baseType is null)
+            return false;
+
+        for (var current = type; current is not null; current = current.BaseType)
+        {
+            if (SymbolEqualityComparer.Default.Equals(current, baseType))
+                return true;
+        }
+
+        return false;
     }
 
     private static bool UsesAreSpanCompatible(ImmutableArray<IOperation> blocks, IParameterSymbol parameter, INamedTypeSymbol readOnlySpan)
@@ -173,12 +224,40 @@ public sealed class PreferParamsSpanAnalyzer : DiagnosticAnalyzer
                         return false;
                 }
 
-                if (!ReadOnlySpanUse.IsCompatible(reference, readOnlySpan))
+                if (!ReadOnlySpanUse.IsCompatible(reference, readOnlySpan) || SpanMayEscape(reference))
                     return false;
             }
         }
 
         return true;
+    }
+
+    // After the fix the span is scoped to the method. A conversion is only kept when it is passed by
+    // value to a call whose result cannot carry the span and whose other arguments cannot receive it.
+    // Stored in a local or field, returned, or passed by reference, the scoped span could escape.
+    private static bool SpanMayEscape(IParameterReferenceOperation reference)
+    {
+        if (reference.Parent is not IConversionOperation conversion || conversion.Parent is IForEachLoopOperation)
+            return false;
+
+        if (conversion.Parent is not IArgumentOperation { Parameter.RefKind: RefKind.None } argument)
+            return true;
+
+        var (call, arguments) = argument.Parent switch
+        {
+            IInvocationOperation invocation => ((IOperation)invocation, invocation.Arguments),
+            IObjectCreationOperation creation => (creation, creation.Arguments),
+            _ => (null, default),
+        };
+
+        if (call is null
+            || call.Type is { IsRefLikeType: true }
+            || call is IInvocationOperation { TargetMethod: { ReturnsByRef: true } or { ReturnsByRefReadonly: true } })
+        {
+            return true;
+        }
+
+        return arguments.Any(other => other.Parameter is { RefKind: RefKind.Ref or RefKind.Out, Type.IsRefLikeType: true });
     }
 
     // Normal form with an array whose type is not exactly the parameter type: a covariant array, or null.

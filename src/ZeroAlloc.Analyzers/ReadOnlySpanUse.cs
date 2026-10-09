@@ -49,7 +49,10 @@ internal static class ReadOnlySpanUse
                 return true;
         }
 
-        return element.Type is { IsValueType: true, IsReadOnly: false, SpecialType: SpecialType.None, TypeKind: not TypeKind.Enum }
-            && element.Parent is IMemberReferenceOperation or IInvocationOperation;
+        // A type parameter without a reference type constraint may be a mutable struct.
+        var mayBeMutableStruct = element.Type is ITypeParameterSymbol { IsReferenceType: false }
+            || element.Type is { IsValueType: true, IsReadOnly: false, SpecialType: SpecialType.None, TypeKind: not TypeKind.Enum };
+
+        return mayBeMutableStruct && element.Parent is IMemberReferenceOperation or IInvocationOperation;
     }
 }

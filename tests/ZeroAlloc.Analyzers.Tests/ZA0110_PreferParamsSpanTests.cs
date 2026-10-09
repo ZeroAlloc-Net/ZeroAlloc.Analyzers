@@ -422,4 +422,155 @@ public class ZA0110_PreferParamsSpanTests
         await CSharpAnalyzerVerifier<PreferParamsSpanAnalyzer>
             .VerifyAnalyzerAsync(source, "net8.0", Expected("Sum", ExposedSuffix));
     }
+
+    [Theory]
+    [InlineData("static ReadOnlySpan<int> Pass(params int[] values) => values;")]
+    [InlineData("static ReadOnlySpan<int> Pass(params int[] values) { ReadOnlySpan<int> span = values; return span; }")]
+    [InlineData("static int Pass(params int[] values) { ReadOnlySpan<int> span = values; return span.Length; }")]
+    [InlineData("static ref readonly int Pass(params int[] values) => ref values[0];")]
+    [InlineData("static void Pass(out ReadOnlySpan<int> span, params int[] values) => span = values;")]
+    [InlineData("static void Pass(ref ReadOnlySpan<int> span, params int[] values) { }")]
+    [InlineData("static ReadOnlySpan<int> Same(ReadOnlySpan<int> s) => s; static int Pass(params int[] values) => Same(values).Length;")]
+    [InlineData("static void Copy(ref ReadOnlySpan<int> d, ReadOnlySpan<int> s) => d = s; static int Pass(params int[] values) { ReadOnlySpan<int> local = default; Copy(ref local, values); return local.Length; }")]
+    [InlineData("ref struct R { ReadOnlySpan<int> _s; public void Set(params int[] values) => _s = values; }")]
+    [InlineData("ref struct R { ReadOnlySpan<int> _s; public R(params int[] values) { _s = values; } }")]
+    public async Task SpanWouldEscapeItsScope_NoDiagnostic(string member)
+    {
+        // A params span is implicitly scoped, so the fixed code could not let it escape.
+        var source = $$"""
+            using System;
+
+            class C
+            {
+                {{member}}
+            }
+            """;
+
+        await CSharpAnalyzerVerifier<PreferParamsSpanAnalyzer>.VerifyNoDiagnosticAsync(source, "net8.0");
+    }
+
+    [Theory]
+    [InlineData("static int Sum(params int[] values) => values.Length; static int Sum(ReadOnlySpan<int> values) => 0;")]
+    [InlineData("static int Sum(params int[] values) => values.Length; static int Sum(IEnumerable<int> values) => 0;")]
+    [InlineData("C(params int[] values) { _ = values.Length; } C(string name) { }")]
+    public async Task MethodWithOverload_NoDiagnostic(string members)
+    {
+        // The new signature could clash with, or change which overload callers bind to.
+        var source = $$"""
+            using System;
+            using System.Collections.Generic;
+
+            class C
+            {
+                {{members}}
+            }
+            """;
+
+        await CSharpAnalyzerVerifier<PreferParamsSpanAnalyzer>.VerifyNoDiagnosticAsync(source, "net8.0");
+    }
+
+    [Fact]
+    public async Task MethodWithOverloadInBaseType_NoDiagnostic()
+    {
+        var source = """
+            using System.Collections.Generic;
+
+            class B
+            {
+                protected static int Sum(IEnumerable<int> values) => 0;
+            }
+
+            class C : B
+            {
+                static int Sum(params int[] values) => values.Length;
+            }
+            """;
+
+        await CSharpAnalyzerVerifier<PreferParamsSpanAnalyzer>.VerifyNoDiagnosticAsync(source, "net8.0");
+    }
+
+    [Fact]
+    public async Task AttributeConstructor_NoDiagnostic()
+    {
+        // Attribute arguments cannot bind to a span parameter.
+        var source = """
+            using System;
+
+            class TagsAttribute : Attribute
+            {
+                public TagsAttribute(params int[] values) => Count = values.Length;
+
+                public int Count { get; }
+            }
+
+            [Tags(1, 2)]
+            class C
+            {
+            }
+            """;
+
+        await CSharpAnalyzerVerifier<PreferParamsSpanAnalyzer>.VerifyNoDiagnosticAsync(source, "net8.0");
+    }
+
+    [Fact]
+    public async Task TypeParameterElementMutated_NoDiagnostic()
+    {
+        // T may be a struct, and on a ReadOnlySpan<T> the call would run on a defensive copy.
+        var source = """
+            interface ICounter
+            {
+                void Bump();
+            }
+
+            class C
+            {
+                static void BumpAll<T>(params T[] items) where T : ICounter
+                {
+                    for (var i = 0; i < items.Length; i++)
+                        items[i].Bump();
+                }
+            }
+            """;
+
+        await CSharpAnalyzerVerifier<PreferParamsSpanAnalyzer>.VerifyNoDiagnosticAsync(source, "net8.0");
+    }
+
+    [Fact]
+    public async Task ReferenceTypeParameterElementCalled_Reports()
+    {
+        var source = """
+            interface ICounter
+            {
+                void Bump();
+            }
+
+            class C
+            {
+                static void BumpAll<T>(params T[] {|#0:items|}) where T : class, ICounter
+                {
+                    for (var i = 0; i < items.Length; i++)
+                        items[i].Bump();
+                }
+            }
+            """;
+
+        await CSharpAnalyzerVerifier<PreferParamsSpanAnalyzer>
+            .VerifyAnalyzerAsync(source, "net8.0", Expected("BumpAll", elementType: "T", parameter: "items"));
+    }
+
+    [Fact]
+    public async Task Constructor_ReportsTypeName()
+    {
+        var source = """
+            class C
+            {
+                C(params int[] {|#0:values|}) => Count = values.Length;
+
+                int Count { get; }
+            }
+            """;
+
+        await CSharpAnalyzerVerifier<PreferParamsSpanAnalyzer>
+            .VerifyAnalyzerAsync(source, "net8.0", Expected("C"));
+    }
 }
