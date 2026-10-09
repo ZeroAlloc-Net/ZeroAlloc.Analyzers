@@ -80,6 +80,7 @@ public sealed class ReturnRentedArrayAnalyzer : DiagnosticAnalyzer
             root = root.Parent;
 
         var rentFunctions = EnclosingFunctions(invocation);
+        var returnsSpan = ReturnsSpanByValue(invocation, context.ContainingSymbol, known);
 
         foreach (var reference in root.Descendants().OfType<ILocalReferenceOperation>())
         {
@@ -90,7 +91,7 @@ public sealed class ReturnRentedArrayAnalyzer : DiagnosticAnalyzer
             if (reference.Parent is ISimpleAssignmentOperation assignment && assignment.Target == reference)
                 continue;
 
-            if (IsReturnedOrEscapes(reference, rentFunctions, known))
+            if (IsReturnedOrEscapes(reference, rentFunctions, returnsSpan, known))
                 return;
         }
 
@@ -122,6 +123,7 @@ public sealed class ReturnRentedArrayAnalyzer : DiagnosticAnalyzer
     private static bool IsReturnedOrEscapes(
         ILocalReferenceOperation reference,
         ImmutableArray<IOperation> rentFunctions,
+        bool returnsSpan,
         KnownTypes known)
     {
         for (var current = reference.Parent; current is not null; current = current.Parent)
@@ -137,13 +139,13 @@ public sealed class ReturnRentedArrayAnalyzer : DiagnosticAnalyzer
                     return true;
                 return argument.Parameter?.RefKind != RefKind.None
                     || !known.IsTrusted(call.TargetMethod.ContainingType)
-                    || !IsNonRetainingCall(call, known);
+                    || !IsNonRetainingCall(call, returnsSpan, known);
             case IArgumentOperation { Parent: IObjectCreationOperation creation }:
-                return !known.IsSpan(creation.Type) || IsDirectlyReturned(creation);
+                return !known.IsSpan(creation.Type) || returnsSpan || IsDirectlyReturned(creation);
             case IConversionOperation conversion:
                 if (conversion.Parent is IForEachLoopOperation)
                     return false;
-                return !known.IsSpan(conversion.Type) || IsDirectlyReturned(conversion);
+                return !known.IsSpan(conversion.Type) || returnsSpan || IsDirectlyReturned(conversion);
             case IArrayElementReferenceOperation element:
                 return element.ArrayReference != reference;
             case IPropertyReferenceOperation property:
@@ -160,13 +162,29 @@ public sealed class ReturnRentedArrayAnalyzer : DiagnosticAnalyzer
     // A trusted call keeps no reference to its array when it returns void, a primitive or other
     // special non-object type, or a span that the caller does not get back directly. Object is
     // excluded because it can hold the array; Memory, arrays, tasks and collections can too.
-    private static bool IsNonRetainingCall(IInvocationOperation call, KnownTypes known)
+    private static bool IsNonRetainingCall(IInvocationOperation call, bool returnsSpan, KnownTypes known)
     {
         var returnType = call.TargetMethod.ReturnType;
         if (returnType.SpecialType is not (SpecialType.None or SpecialType.System_Object))
             return true;
 
-        return known.IsSpan(returnType) && !IsDirectlyReturned(call);
+        return known.IsSpan(returnType) && !returnsSpan && !IsDirectlyReturned(call);
+    }
+
+    // True when the function that owns the rent (the innermost lambda or local function around it,
+    // else the analyzed method) returns a span by value. A span handed out there leaves the method.
+    private static bool ReturnsSpanByValue(IOperation rent, ISymbol? containingSymbol, KnownTypes known)
+    {
+        for (var current = rent.Parent; current is not null; current = current.Parent)
+        {
+            if (current is IAnonymousFunctionOperation lambda)
+                return known.IsSpan(lambda.Symbol.ReturnType);
+
+            if (current is ILocalFunctionOperation localFunction)
+                return known.IsSpan(localFunction.Symbol.ReturnType);
+        }
+
+        return containingSymbol is IMethodSymbol method && known.IsSpan(method.ReturnType);
     }
 
     // True when the value, possibly after implicit conversions, is the operand of a return.

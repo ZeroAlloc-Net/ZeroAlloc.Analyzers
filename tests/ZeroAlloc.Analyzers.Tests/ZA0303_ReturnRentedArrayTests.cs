@@ -357,4 +357,26 @@ public class ZA0303_ReturnRentedArrayTests
         await CSharpAnalyzerVerifier<ReturnRentedArrayAnalyzer>
             .VerifyAnalyzerAsync(source, "net8.0", Expected("buffer"));
     }
+
+    [Fact]
+    public async Task SpanLocalReturnedFromSpanMethod_NoDiagnostic()
+    {
+        var source = """
+            using System;
+            using System.Buffers;
+
+            class C
+            {
+                Span<byte> M()
+                {
+                    var buffer = ArrayPool<byte>.Shared.Rent(16);
+                    var s = buffer.AsSpan();
+                    return s;
+                }
+            }
+            """;
+
+        await CSharpAnalyzerVerifier<ReturnRentedArrayAnalyzer>
+            .VerifyNoDiagnosticAsync(source, "net8.0");
+    }
 }
