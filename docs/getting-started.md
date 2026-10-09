@@ -10,7 +10,7 @@ sidebar_position: 1
 
 ## What is ZeroAlloc.Analyzers?
 
-ZeroAlloc.Analyzers is a Roslyn analyzer NuGet package that detects allocation-heavy patterns in C# code and suggests zero or low-allocation alternatives. It covers 50 rules across 15 categories — from collection misuse and string concatenation to boxing, LINQ, async, value type pitfalls, cache-line data layout, and Native AOT compatibility. The package is multi-TFM aware: rules are automatically enabled or disabled based on the consuming project's `<TargetFramework>`, so you only see diagnostics that are actionable for your target runtime.
+ZeroAlloc.Analyzers is a Roslyn analyzer NuGet package that detects allocation-heavy patterns in C# code and suggests zero or low-allocation alternatives. It covers 57 rules across 15 categories — from collection misuse and string concatenation to boxing, LINQ, async, value type pitfalls, cache-line data layout, and Native AOT compatibility. The package is multi-TFM aware: rules are automatically enabled or disabled based on the consuming project's `<TargetFramework>`, so you only see diagnostics that are actionable for your target runtime.
 
 ---
 
@@ -121,14 +121,14 @@ See [configuration.md](configuration.md) for the full suppression and severity-t
 
 ## Rule Categories
 
-ZeroAlloc.Analyzers organizes its 50 rules into 15 categories:
+ZeroAlloc.Analyzers organizes its 57 rules into 15 categories:
 
 ```mermaid
 graph TD
     ZeroAlloc["ZeroAlloc.Analyzers"]
-    ZeroAlloc --> C["Collections<br/>ZA01xx (9 rules)"]
-    ZeroAlloc --> S["Strings<br/>ZA02xx (8 rules)"]
-    ZeroAlloc --> M["Memory<br/>ZA03xx (2 rules)"]
+    ZeroAlloc --> C["Collections<br/>ZA01xx (11 rules)"]
+    ZeroAlloc --> S["Strings<br/>ZA02xx (11 rules)"]
+    ZeroAlloc --> M["Memory<br/>ZA03xx (4 rules)"]
     ZeroAlloc --> L["Logging<br/>ZA04xx (1 rule)"]
     ZeroAlloc --> B["Boxing<br/>ZA05xx (3 rules)"]
     ZeroAlloc --> LQ["LINQ<br/>ZA06xx (7 rules)"]
@@ -147,7 +147,7 @@ graph TD
 
 ## All Rules
 
-The tables below list all 50 rules grouped by category. Rule IDs link to the corresponding section in each category's reference document. The **Min TFM** column shows the minimum target framework required for the rule to fire; `Any` means the rule applies to all supported frameworks.
+The tables below list all 57 rules grouped by category. Rule IDs link to the corresponding section in each category's reference document. The **Min TFM** column shows the minimum target framework required for the rule to fire; `Any` means the rule applies to all supported frameworks.
 
 ### Collections (ZA01xx)
 

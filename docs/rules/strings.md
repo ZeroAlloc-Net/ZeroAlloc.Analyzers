@@ -22,6 +22,8 @@ flowchart TD
     Op -->|Joining value types| JB["ZA0208 — Avoid boxing overload of string.Join"]
     Op -->|Concatenating value types| VB["ZA0209 — Avoid boxing in string concat"]
     Op -->|Constant UTF-8 encoding| U8["ZA0210 — Use a u8 literal"]
+    Op -->|Splitting on a separator| SS["ZA0211 — Use the span-based Split"]
+    Op -->|Parse that may throw| TP["ZA0212 — Use TryParse"]
 ```
 
 ---
@@ -847,6 +849,40 @@ writer.Write("\r\n"u8);
 
 ---
 
+## ZA0211 — Use the span-based Split {#za0211}
+
+> **Severity**: Info | **Min TFM**: net9.0 | **Code fix**: No
+
+### Why
+
+`string.Split` allocates the result array and a new string for every part, even when the loop only looks at each part once. Since .NET 9, `MemoryExtensions.Split` on a `ReadOnlySpan<char>` enumerates the parts as `Range` values over the original text, with no allocation. The rule reports a `foreach` directly over `string.Split` with a single `char` or non-empty constant string separator and no `StringSplitOptions`, because the span enumerator supports neither multiple separators nor options. There is no code fix: the loop variable changes from `string` to `Range`, so the body has to change.
+
+### Before
+
+```csharp
+// ❌ allocates the array and one string per field
+foreach (var field in line.Split(','))
+    total += int.Parse(field);
+```
+
+### After
+
+```csharp
+// ✓ no allocation
+var span = line.AsSpan();
+foreach (var range in span.Split(','))
+    total += int.Parse(span[range]);
+```
+
+### Suppression
+
+```csharp
+#pragma warning disable ZA0211
+// or in .editorconfig: dotnet_diagnostic.ZA0211.severity = none
+```
+
+---
+
 ## ZA0212 — Use TryParse instead of catching the exception from Parse {#za0212}
 
 > **Severity**: Info | **Min TFM**: Any | **Code fix**: No
@@ -883,38 +919,4 @@ if (!int.TryParse(value, out var port))
 ```csharp
 #pragma warning disable ZA0212
 // or in .editorconfig: dotnet_diagnostic.ZA0212.severity = none
-```
-
----
-
-## ZA0211 — Use the span-based Split {#za0211}
-
-> **Severity**: Info | **Min TFM**: net9.0 | **Code fix**: No
-
-### Why
-
-`string.Split` allocates the result array and a new string for every part, even when the loop only looks at each part once. Since .NET 9, `MemoryExtensions.Split` on a `ReadOnlySpan<char>` enumerates the parts as `Range` values over the original text, with no allocation. The rule reports a `foreach` directly over `string.Split` with a single `char` or non-empty constant string separator and no `StringSplitOptions`, because the span enumerator supports neither multiple separators nor options. There is no code fix: the loop variable changes from `string` to `Range`, so the body has to change.
-
-### Before
-
-```csharp
-// ❌ allocates the array and one string per field
-foreach (var field in line.Split(','))
-    total += int.Parse(field);
-```
-
-### After
-
-```csharp
-// ✓ no allocation
-var span = line.AsSpan();
-foreach (var range in span.Split(','))
-    total += int.Parse(span[range]);
-```
-
-### Suppression
-
-```csharp
-#pragma warning disable ZA0211
-// or in .editorconfig: dotnet_diagnostic.ZA0211.severity = none
 ```

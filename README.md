@@ -6,7 +6,7 @@
 [![AOT](https://img.shields.io/badge/AOT--Compatible-passing-brightgreen)](https://learn.microsoft.com/dotnet/core/deploying/native-aot/)
 [![GitHub Sponsors](https://img.shields.io/github/sponsors/MarcelRoozekrans?style=flat&logo=githubsponsors&color=ea4aaa&label=Sponsor)](https://github.com/sponsors/MarcelRoozekrans)
 
-Roslyn analyzers for modern .NET performance patterns. ZeroAlloc.Analyzers catches allocation-heavy patterns that built-in analyzers miss — FrozenDictionary opportunities, LINQ iterator overhead, boxing in loops, async state machine waste, and more — with 50 rules across 15 categories. Every rule is multi-TFM aware: rules that require a specific .NET version are automatically silenced when your project targets an older framework, so every diagnostic you see is actionable.
+Roslyn analyzers for modern .NET performance patterns. ZeroAlloc.Analyzers catches allocation-heavy patterns that built-in analyzers miss — FrozenDictionary opportunities, LINQ iterator overhead, boxing in loops, async state machine waste, and more — with 57 rules across 15 categories. Every rule is multi-TFM aware: rules that require a specific .NET version are automatically silenced when your project targets an older framework, so every diagnostic you see is actionable.
 
 ## Installation
 
@@ -47,16 +47,16 @@ Roslyn analyzers run incrementally; on a warmed-up build only changed files are 
 
 | Scenario | Rules active | Typical first-build overhead | Incremental overhead |
 |---|---|---|---|
-| `netstandard2.0` single-TFM | 36 of 50 | ~120 ms | ~10 ms |
-| `net8.0` single-TFM | 50 of 50 | ~200 ms | ~15 ms |
-| `net8.0` + `netstandard2.0` multi-TFM | 50 / 36 per TFM | ~350 ms | ~25 ms |
-| `net8.0`, data-flow rules disabled (ZA0607, ZA0502) | 48 of 50 | ~160 ms | ~10 ms |
+| `netstandard2.0` single-TFM | 40 of 57 | ~120 ms | ~10 ms |
+| `net8.0` single-TFM | 55 of 57 | ~200 ms | ~15 ms |
+| `net8.0` + `netstandard2.0` multi-TFM | 55 / 40 per TFM | ~350 ms | ~25 ms |
+| `net8.0`, data-flow rules disabled (ZA0607, ZA0502) | 53 of 57 | ~160 ms | ~10 ms |
 
 See [docs/performance.md](docs/performance.md) for tuning tips.
 
 ## Features
 
-- **50 rules** across 15 categories: Collections, Strings, Memory, Logging, Boxing, LINQ, Regex, Enums, Sealing, Serialization, Async, Delegates, Value Types, Data Layout, Native AOT
+- **57 rules** across 15 categories: Collections, Strings, Memory, Logging, Boxing, LINQ, Regex, Enums, Sealing, Serialization, Async, Delegates, Value Types, Data Layout, Native AOT
 - **Multi-TFM aware** — rules requiring net5.0+, net6.0+, net7.0+, or net8.0+ are automatically gated; you never see a diagnostic for an API that does not exist in your target
 - **Code fixes** included for a subset of rules — apply suggestions with one click from the IDE or via `dotnet format`
 - **Zero transitive dependency** — install with `PrivateAssets="all"` so the package does not propagate to your consumers
@@ -70,7 +70,7 @@ See [docs/performance.md](docs/performance.md) for tuning tips.
 | [Configuration](docs/configuration.md) | Severity tuning, suppression, TFM gating, TreatWarningsAsErrors |
 | [Collections (ZA01xx)](docs/rules/collections.md) | FrozenDictionary, FrozenSet, TryGetValue, pre-sizing, zero-length arrays |
 | [Strings (ZA02xx)](docs/rules/strings.md) | StringBuilder, AsSpan, string.Create, CompositeFormat, boxing in concatenation |
-| [Memory (ZA03xx)](docs/rules/memory.md) | stackalloc for small buffers, ArrayPool for large temporary arrays |
+| [Memory (ZA03xx)](docs/rules/memory.md) | stackalloc for small buffers, ArrayPool for large temporary arrays, returning rented arrays, constant tables as spans |
 | [Logging (ZA04xx)](docs/rules/logging.md) | LoggerMessage source generator vs reflection-based logging |
 | [Boxing (ZA05xx)](docs/rules/boxing.md) | Value type boxing in loops, closure allocations, defensive copies |
 | [LINQ (ZA06xx)](docs/rules/linq.md) | LINQ in loops, Count vs Any, indexer vs First/Last, multiple enumeration |

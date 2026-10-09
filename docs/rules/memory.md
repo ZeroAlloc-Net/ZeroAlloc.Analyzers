@@ -18,6 +18,9 @@ flowchart TD
     Q2 -->|No| Pool["ZA0302 — ArrayPool&lt;T&gt;.Shared.Rent(size)"]
     Q3 -->|Yes| Stack["ZA0301 — stackalloc T[N] → Span&lt;T&gt;"]
     Q3 -->|No| Pool
+    Pool --> Return["ZA0303 — Return the rented array"]
+    Q1 -->|No| Q4{Constant lookup table?}
+    Q4 -->|Yes| Table["ZA0304 — static ReadOnlySpan&lt;T&gt; property"]
 ```
 
 ---
@@ -414,7 +417,6 @@ await destination.WriteAsync(buffer[..read], ct);
 #pragma warning disable ZA0302
 // or in .editorconfig: dotnet_diagnostic.ZA0302.severity = none
 ```
-
 
 ---
 
