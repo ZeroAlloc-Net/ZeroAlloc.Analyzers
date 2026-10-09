@@ -109,6 +109,10 @@ public sealed class ImplementEquatableOnStructKeyAnalyzer : DiagnosticAnalyzer
 
     private static void Report(OperationAnalysisContext context, KnownTypes known, ITypeSymbol key, SyntaxNode syntax)
     {
+        // EqualityComparer<T>.Default boxes Nullable<S> keys too when S lacks IEquatable<S>.
+        if (key is INamedTypeSymbol { OriginalDefinition.SpecialType: SpecialType.System_Nullable_T } nullable)
+            key = nullable.TypeArguments[0];
+
         if (key is not INamedTypeSymbol { TypeKind: TypeKind.Struct, IsRecord: false } structType
             || !SymbolEqualityComparer.Default.Equals(structType.ContainingAssembly, known.Assembly)
             || known.ImplementsEquatable(structType))

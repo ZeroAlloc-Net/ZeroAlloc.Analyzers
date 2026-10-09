@@ -62,6 +62,11 @@ public class ZA1503_ImplementEquatableOnStructKeyTests
     [InlineData("return {|#0:points.ToHashSet()|};")]
     [InlineData("return {|#0:points.ToFrozenSet()|};")]
     [InlineData("return {|#0:points.Select(p => new KeyValuePair<Point, int>(p, 0)).ToFrozenDictionary()|};")]
+    [InlineData("return {|#0:points.ToFrozenSet(null)|};")]
+    [InlineData("return {|#0:new HashSet<Point>((IEqualityComparer<Point>)null)|};")]
+    [InlineData("return {|#0:points.ToDictionary(p => p, p => 0, null)|};")]
+    [InlineData("return {|#0:new Dictionary<Point, int>(default(IEqualityComparer<Point>))|};")]
+    [InlineData("return {|#0:new Dictionary<Point?, int>()|};")]
     public async Task StructKeyWithoutEquatable_Reports(string statement)
     {
         await CSharpAnalyzerVerifier<ImplementEquatableOnStructKeyAnalyzer>
@@ -72,6 +77,7 @@ public class ZA1503_ImplementEquatableOnStructKeyTests
     [InlineData("return new Dictionary<EquatablePoint, int>();")]
     [InlineData("return new HashSet<RecordPoint>();")]
     [InlineData("return new Dictionary<Color, int>();")]
+    [InlineData("return new Dictionary<EquatablePoint?, int>();")]
     [InlineData("return new Dictionary<Box, int>();")]
     [InlineData("return new Dictionary<Point, int>(PointComparer.Instance);")]
     [InlineData("return new HashSet<Point>(points, PointComparer.Instance);")]
