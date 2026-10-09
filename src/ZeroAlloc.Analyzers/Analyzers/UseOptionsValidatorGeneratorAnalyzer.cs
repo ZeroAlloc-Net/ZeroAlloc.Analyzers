@@ -1,5 +1,6 @@
 using System.Collections.Immutable;
 using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.Diagnostics;
 using Microsoft.CodeAnalysis.Operations;
 
@@ -8,7 +9,8 @@ namespace ZeroAlloc.Analyzers;
 /// <summary>
 /// Reports ValidateDataAnnotations, which validates options with reflection, and points at the
 /// [OptionsValidator] source generator. Stands down when the SDK's own AOT analyzer is enabled,
-/// and when the generator is unavailable, that is before Microsoft.Extensions.Options 8.0.
+/// and when the generator is unavailable, that is before Microsoft.Extensions.Options 8.0 or
+/// below C# 8, where the generator emits error SYSLIB1216.
 /// </summary>
 [DiagnosticAnalyzer(LanguageNames.CSharp)]
 public sealed class UseOptionsValidatorGeneratorAnalyzer : DiagnosticAnalyzer
@@ -30,6 +32,10 @@ public sealed class UseOptionsValidatorGeneratorAnalyzer : DiagnosticAnalyzer
         context.RegisterCompilationStartAction(static start =>
         {
             if (AotHelper.IsSdkAotAnalyzerEnabled(start.Options))
+                return;
+
+            // The generator reports error SYSLIB1216 below C# 8, so the advice would break the build.
+            if (start.Compilation is not CSharpCompilation { LanguageVersion: >= LanguageVersion.CSharp8 })
                 return;
 
             // The suggested fix only exists with Microsoft.Extensions.Options 8.0 or later.
