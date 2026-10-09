@@ -182,6 +182,7 @@ The tables below list all 50 rules grouped by category. Rule IDs link to the cor
 |---------|-------|----------|---------|
 | [ZA0301](rules/memory.md#za0301) | Use stackalloc for small fixed-size buffers | Info | Any |
 | [ZA0302](rules/memory.md#za0302) | Use ArrayPool for large temporary arrays | Info | Any |
+| [ZA0303](rules/memory.md#za0303) | Return rented arrays to the pool | Warning | Any |
 
 ### Logging (ZA04xx)
 

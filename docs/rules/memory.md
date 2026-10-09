@@ -414,3 +414,53 @@ await destination.WriteAsync(buffer[..read], ct);
 #pragma warning disable ZA0302
 // or in .editorconfig: dotnet_diagnostic.ZA0302.severity = none
 ```
+
+---
+
+## ZA0303 — Return rented arrays to the pool {#za0303}
+
+> **Severity**: Warning | **Min TFM**: Any | **Code fix**: No
+
+### Why
+
+`ArrayPool<T>.Rent` only saves an allocation if the array goes back with `Return`. An array that is rented and never returned is a plain allocation plus pool bookkeeping, and the pool has to allocate again for the next caller. The rule reports a rented array that is stored in a local, never passed to `Return`, and never leaves the method.
+
+It stays silent once the array may have changed owner: when it is returned, stored in a field, aliased, captured by a lambda, or passed to a method that could keep it. Passing it to `Stream`, `Array`, `Buffer` or `MemoryExtensions` methods such as `AsSpan` does not count, because those only read or write it. A `Return` outside a `finally` is fine: if an exception skips it, the GC collects the array.
+
+### Before
+
+```csharp
+// ❌ the rented buffer is never returned, so every call allocates anyway
+public int Checksum(Stream stream)
+{
+    var buffer = ArrayPool<byte>.Shared.Rent(4096);
+    var read = stream.Read(buffer, 0, buffer.Length);
+    return Crc32.Compute(buffer.AsSpan(0, read));
+}
+```
+
+### After
+
+```csharp
+// ✓ the buffer goes back to the pool for the next caller
+public int Checksum(Stream stream)
+{
+    var buffer = ArrayPool<byte>.Shared.Rent(4096);
+    try
+    {
+        var read = stream.Read(buffer, 0, buffer.Length);
+        return Crc32.Compute(buffer.AsSpan(0, read));
+    }
+    finally
+    {
+        ArrayPool<byte>.Shared.Return(buffer);
+    }
+}
+```
+
+### Suppression
+
+```csharp
+#pragma warning disable ZA0303
+// or in .editorconfig: dotnet_diagnostic.ZA0303.severity = none
+```

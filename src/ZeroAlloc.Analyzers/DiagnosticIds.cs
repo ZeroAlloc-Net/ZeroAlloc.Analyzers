@@ -26,6 +26,7 @@ public static class DiagnosticIds
     // ZA03xx — Memory
     public const string UseStackalloc = "ZA0301";
     public const string UseArrayPool = "ZA0302";
+    public const string ReturnRentedArray = "ZA0303";
 
     // ZA04xx — Logging
     public const string UseLoggerMessage = "ZA0401";
