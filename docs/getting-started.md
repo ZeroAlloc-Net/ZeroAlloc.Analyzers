@@ -281,6 +281,7 @@ The tables below list all 59 rules grouped by category. Rule IDs link to the cor
 | [ZA1702](rules/aot.md#za1702) | Avoid runtime IL generation | Info | Any |
 | [ZA1703](rules/aot.md#za1703) | Avoid constructing generic types or methods at runtime | Info | Any |
 | [ZA1704](rules/aot.md#za1704) | Avoid reflection-based serializers | Info | Any |
+| [ZA1706](rules/aot.md#za1706) | Mark libraries as AOT-compatible | Info | net8.0 |
 
 > `ZA1705` (avoid resolving types or assemblies by name) is disabled by default — see [Native AOT rules](rules/aot.md#za1705) to opt in. All ZA17xx rules stand down automatically when the SDK's own AOT analyzer is enabled.
 

@@ -53,6 +53,32 @@ public static class CSharpAnalyzerVerifier<TAnalyzer>
         await VerifyAnalyzerAsync(source, targetFramework, referenceAssemblies);
     }
 
+    /// <summary>
+    /// Analyzes with the given MSBuild properties visible to the analyzer, as the package's
+    /// buildTransitive props make them, and with the given output kind.
+    /// </summary>
+    public static async Task VerifyAnalyzerWithPropertiesAsync(
+        string source,
+        ReferenceAssemblies referenceAssemblies,
+        IReadOnlyDictionary<string, string> buildProperties,
+        DiagnosticResult[] expected,
+        OutputKind outputKind = OutputKind.DynamicallyLinkedLibrary)
+    {
+        var test = new CSharpAnalyzerTest<TAnalyzer, DefaultVerifier>
+        {
+            TestCode = source,
+            ReferenceAssemblies = referenceAssemblies,
+        };
+
+        test.TestState.OutputKind = outputKind;
+
+        var properties = string.Join("\n", buildProperties.Select(p => $"build_property.{p.Key} = {p.Value}"));
+        test.TestState.AnalyzerConfigFiles.Add(("/.globalconfig", $"is_global = true\n{properties}\n"));
+
+        test.ExpectedDiagnostics.AddRange(expected);
+        await test.RunAsync();
+    }
+
     private static async Task RunAsync(
         string source,
         string targetFramework,

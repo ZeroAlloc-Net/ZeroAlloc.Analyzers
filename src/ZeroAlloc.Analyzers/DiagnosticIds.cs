@@ -91,4 +91,5 @@ public static class DiagnosticIds
     public const string AvoidDynamicGenericConstruction = "ZA1703";
     public const string AvoidReflectionSerializers = "ZA1704";
     public const string AvoidTypeLoadingByName = "ZA1705";
+    public const string MarkLibraryAotCompatible = "ZA1706";
 }

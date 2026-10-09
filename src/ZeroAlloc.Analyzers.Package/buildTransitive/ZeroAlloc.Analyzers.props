@@ -5,5 +5,7 @@
     <CompilerVisibleProperty Include="PublishAot" />
     <CompilerVisibleProperty Include="IsAotCompatible" />
     <CompilerVisibleProperty Include="EnableAotAnalyzer" />
+    <!-- Lets ZA1706 skip test projects, which are never published with AOT. -->
+    <CompilerVisibleProperty Include="IsTestProject" />
   </ItemGroup>
 </Project>

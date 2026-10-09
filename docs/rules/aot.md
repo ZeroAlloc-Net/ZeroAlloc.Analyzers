@@ -126,3 +126,34 @@ var t = typeof(AcmePlugin);
 // or in .editorconfig:
 // dotnet_diagnostic.ZA1705.severity = none   (already disabled by default)
 ```
+
+---
+
+## ZA1706 — Mark libraries as AOT-compatible {#za1706}
+
+> **Severity**: Info | **Min TFM**: net8.0 | **Code fix**: No
+
+### Why
+
+The SDK's trim and AOT analyzers (`IL2xxx`, `IL3xxx`) only run when a project sets `IsAotCompatible`, `PublishAot` or `EnableAotAnalyzer`. A library that sets none of them can ship code that breaks under Native AOT, and nothing warns until an app publishes with it. Setting `IsAotCompatible` turns those analyzers on for the library itself, so AOT problems surface where they can be fixed.
+
+The rule reports once per project, with no source location, for a net8.0 or later library that has never set `IsAotCompatible`. It stays silent for apps, test projects and older target frameworks. An explicit `<IsAotCompatible>false</IsAotCompatible>` also silences it, because that is a decision. The diagnostic shows on build and in full-solution analysis.
+
+### Fix
+
+```xml
+<!-- In a multi-targeted library, set it only where it applies -->
+<PropertyGroup Condition="$([MSBuild]::IsTargetFrameworkCompatible('$(TargetFramework)', 'net8.0'))">
+  <IsAotCompatible>true</IsAotCompatible>
+</PropertyGroup>
+```
+
+### Suppression
+
+The diagnostic has no source location, so `#pragma` cannot silence it. Record the decision instead:
+
+```xml
+<IsAotCompatible>false</IsAotCompatible>
+```
+
+or turn the rule off in `.editorconfig`: `dotnet_diagnostic.ZA1706.severity = none`.
