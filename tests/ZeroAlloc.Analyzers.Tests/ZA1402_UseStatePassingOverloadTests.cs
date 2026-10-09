@@ -623,4 +623,34 @@ public class ZA1402_UseStatePassingOverloadTests
 
         await VerifyFix(source, fixedSource, "ConcurrentDictionary.GetOrAdd", "'item'");
     }
+
+    [Fact]
+    public async Task PrimaryConstructorParameterInEventFieldInitializer_IsAParameterCapture()
+    {
+        var source = """
+            using System;
+            using System.Collections.Concurrent;
+
+            class C(string s)
+            {
+                static readonly ConcurrentDictionary<int, string> Cache = new();
+
+                public event Func<string> E = () => Cache.GetOrAdd(1, {|#0:k => s + k|});
+            }
+            """;
+
+        var fixedSource = """
+            using System;
+            using System.Collections.Concurrent;
+
+            class C(string s)
+            {
+                static readonly ConcurrentDictionary<int, string> Cache = new();
+
+                public event Func<string> E = () => Cache.GetOrAdd(1, static (k, s) => s + k, s);
+            }
+            """;
+
+        await VerifyFix(source, fixedSource, "ConcurrentDictionary.GetOrAdd", "'s'");
+    }
 }

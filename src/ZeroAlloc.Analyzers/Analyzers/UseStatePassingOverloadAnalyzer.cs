@@ -180,7 +180,7 @@ public sealed class UseStatePassingOverloadAnalyzer : DiagnosticAnalyzer
         {
             switch (node)
             {
-                case EqualsValueClauseSyntax { Parent: VariableDeclaratorSyntax { Parent.Parent: FieldDeclarationSyntax } }:
+                case EqualsValueClauseSyntax { Parent: VariableDeclaratorSyntax { Parent.Parent: BaseFieldDeclarationSyntax } }:
                 case EqualsValueClauseSyntax { Parent: PropertyDeclarationSyntax }:
                 case PrimaryConstructorBaseTypeSyntax:
                     return true;
