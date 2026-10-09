@@ -39,7 +39,9 @@ public class ZA1707_UseConfigurationBindingGeneratorTests
     [InlineData("_ = {|#0:config.Get<Settings>()|};", "ConfigurationBinder.Get")]
     [InlineData("_ = {|#0:config.Get(typeof(Settings))|};", "ConfigurationBinder.Get")]
     [InlineData("_ = {|#0:config.GetValue<int>(\"Port\")|};", "ConfigurationBinder.GetValue")]
+    [InlineData("_ = {|#0:config.Get<Settings>(o => o.BindNonPublicProperties = true)|};", "ConfigurationBinder.Get")]
     [InlineData("{|#0:services.Configure<Settings>(config)|};", "OptionsConfigurationServiceCollectionExtensions.Configure")]
+    [InlineData("{|#0:services.Configure<Settings>(\"name\", config)|};", "OptionsConfigurationServiceCollectionExtensions.Configure")]
     [InlineData("{|#0:services.AddOptions<Settings>().Bind(config)|};", "OptionsBuilderConfigurationExtensions.Bind")]
     [InlineData("{|#0:services.AddOptions<Settings>().BindConfiguration(\"Settings\")|};", "OptionsBuilderConfigurationExtensions.BindConfiguration")]
     public async Task ReflectionBinding_Reports(string statement, string api)
