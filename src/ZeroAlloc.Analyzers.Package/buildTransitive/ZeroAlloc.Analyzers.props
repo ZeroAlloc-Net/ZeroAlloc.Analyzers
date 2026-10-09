@@ -7,5 +7,7 @@
     <CompilerVisibleProperty Include="EnableAotAnalyzer" />
     <!-- Lets ZA1706 skip test projects, which are never published with AOT. -->
     <CompilerVisibleProperty Include="IsTestProject" />
+    <!-- Lets ZA1707 stand down once the configuration-binding source generator is on. -->
+    <CompilerVisibleProperty Include="EnableConfigurationBindingGenerator" />
   </ItemGroup>
 </Project>

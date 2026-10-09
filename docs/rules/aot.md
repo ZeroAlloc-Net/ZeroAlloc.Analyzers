@@ -157,3 +157,30 @@ The diagnostic has no source location, so `#pragma` cannot silence it. Record th
 ```
 
 or turn the rule off in `.editorconfig`: `dotnet_diagnostic.ZA1706.severity = none`.
+
+---
+
+## ZA1707 — Use the configuration-binding source generator {#za1707}
+
+> **Severity**: Info | **Min TFM**: Any | **Code fix**: No
+
+### Why
+
+`ConfigurationBinder.Bind`, `Get` and `GetValue`, and the options helpers `Configure<T>(IConfiguration)`, `Bind` and `BindConfiguration`, walk your options type with reflection. That needs the type's members preserved from trimming, and it is slower than generated code. Since .NET 8, the configuration-binding source generator intercepts those calls and replaces them with generated code. Turning it on is one MSBuild property; the calls themselves stay the same.
+
+`PublishAot` turns the generator on automatically, so the rule stays silent there, and it also stays silent once the SDK's own AOT analyzer is enabled.
+
+### Fix
+
+```xml
+<PropertyGroup>
+  <EnableConfigurationBindingGenerator>true</EnableConfigurationBindingGenerator>
+</PropertyGroup>
+```
+
+### Suppression
+
+```csharp
+#pragma warning disable ZA1707
+// or in .editorconfig: dotnet_diagnostic.ZA1707.severity = none
+```
