@@ -45,8 +45,12 @@ public sealed class UseConfigurationBindingGeneratorAnalyzer : DiagnosticAnalyze
             var builder = ImmutableArray.CreateBuilder<(INamedTypeSymbol Type, string[] Methods)>();
             foreach (var (typeName, methods) in BindingApis)
             {
-                if (start.Compilation.GetTypeByMetadataName(typeName) is { } type)
+                // The generator ships with Microsoft.Extensions.Configuration.Binder 8.0.
+                if (start.Compilation.GetTypeByMetadataName(typeName) is { } type
+                    && type.ContainingAssembly.Identity.Version.Major >= 8)
+                {
                     builder.Add((type, methods));
+                }
             }
 
             if (builder.Count == 0)
@@ -59,11 +63,16 @@ public sealed class UseConfigurationBindingGeneratorAnalyzer : DiagnosticAnalyze
 
     private static void AnalyzeInvocation(OperationAnalysisContext context, ImmutableArray<(INamedTypeSymbol Type, string[] Methods)> apis)
     {
-        var method = ((IInvocationOperation)context.Operation).TargetMethod;
+        var invocation = (IInvocationOperation)context.Operation;
+        var method = invocation.TargetMethod;
         foreach (var (type, methods) in apis)
         {
             if (SymbolEqualityComparer.Default.Equals(method.ContainingType, type) && Array.IndexOf(methods, method.Name) >= 0)
             {
+                // The generator only replaces calls whose target type is known at compile time.
+                if (HasRuntimeOnlyTarget(invocation, method))
+                    return;
+
                 context.ReportDiagnostic(Diagnostic.Create(
                     Rule,
                     context.Operation.Syntax.GetLocation(),
@@ -71,5 +80,30 @@ public sealed class UseConfigurationBindingGeneratorAnalyzer : DiagnosticAnalyze
                 return;
             }
         }
+    }
+
+    private static bool HasRuntimeOnlyTarget(IInvocationOperation invocation, IMethodSymbol method)
+    {
+        foreach (var argument in invocation.Arguments)
+        {
+            var value = Unwrap(argument.Value);
+            if (argument.Parameter is not { } parameter)
+                continue;
+
+            if (parameter.Type.ToDisplayString() == "System.Type" && value is not ITypeOfOperation)
+                return true;
+
+            if (method.Name == "Bind" && parameter.Name == "instance" && value.Type?.SpecialType == SpecialType.System_Object)
+                return true;
+        }
+
+        return false;
+    }
+
+    private static IOperation Unwrap(IOperation operation)
+    {
+        while (operation is IConversionOperation { IsImplicit: true } conversion)
+            operation = conversion.Operand;
+        return operation;
     }
 }

@@ -68,4 +68,26 @@ public class ZA1707_UseConfigurationBindingGeneratorTests
         await CSharpAnalyzerVerifier<UseConfigurationBindingGeneratorAnalyzer>.VerifyAnalyzerAsync(
             Binding("services.Configure<Settings>(s => s.Name = \"x\");"), "net8.0", WithConfiguration);
     }
+
+    [Theory]
+    [InlineData("System.Type t = typeof(Settings); _ = config.Get(t);")]
+    [InlineData("System.Type t = typeof(Settings); _ = config.GetValue(t, \"Key\");")]
+    [InlineData("object o = settings; config.Bind(o);")]
+    [InlineData("config.Bind((object)settings);")]
+    public async Task TypeKnownOnlyAtRunTime_NoDiagnostic(string statement)
+    {
+        // The generator cannot intercept these, so the advice would not work.
+        await CSharpAnalyzerVerifier<UseConfigurationBindingGeneratorAnalyzer>.VerifyAnalyzerAsync(
+            Binding(statement), "net8.0", WithConfiguration);
+    }
+
+    [Fact]
+    public async Task BinderOlderThan8_NoDiagnostic()
+    {
+        var older = ReferenceAssemblies.Net.Net80.AddPackages([
+            new PackageIdentity("Microsoft.Extensions.Configuration.Binder", "7.0.4"),
+            new PackageIdentity("Microsoft.Extensions.Options.ConfigurationExtensions", "7.0.0")]);
+        await CSharpAnalyzerVerifier<UseConfigurationBindingGeneratorAnalyzer>.VerifyAnalyzerAsync(
+            Binding("config.Bind(settings);"), "net8.0", older);
+    }
 }
