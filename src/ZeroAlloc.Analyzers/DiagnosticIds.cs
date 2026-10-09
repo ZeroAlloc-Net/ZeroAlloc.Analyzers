@@ -22,6 +22,7 @@ public static class DiagnosticIds
     public const string AvoidSpanToStringBeforeParse = "ZA0206";
     public const string AvoidStringJoinBoxingOverload = "ZA0208";
     public const string AvoidValueTypeBoxingInStringConcat = "ZA0209";
+    public const string UseUtf8StringLiteral = "ZA0210";
 
     // ZA03xx — Memory
     public const string UseStackalloc = "ZA0301";

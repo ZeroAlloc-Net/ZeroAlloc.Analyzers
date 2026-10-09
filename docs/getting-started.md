@@ -175,6 +175,7 @@ The tables below list all 50 rules grouped by category. Rule IDs link to the cor
 | [ZA0206](rules/strings.md#za0206) | Avoid span.ToString() before Parse | Info | net6.0 |
 | [ZA0208](rules/strings.md#za0208) | Avoid string.Join boxing overload | Warning | Any |
 | [ZA0209](rules/strings.md#za0209) | Avoid value type boxing in string concatenation | Warning | Any |
+| [ZA0210](rules/strings.md#za0210) | Use a UTF-8 string literal | Warning | Any (C# 11) |
 
 ### Memory (ZA03xx)
 

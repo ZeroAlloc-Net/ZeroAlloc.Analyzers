@@ -1,4 +1,5 @@
 using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Testing;
 using Microsoft.CodeAnalysis.Diagnostics;
 using Microsoft.CodeAnalysis.Testing;
@@ -16,7 +17,7 @@ public static class CSharpAnalyzerVerifier<TAnalyzer>
         string targetFramework = "net8.0",
         params DiagnosticResult[] expected)
     {
-        await VerifyAnalyzerAsync(source, targetFramework, ReferenceAssemblies.Net.Net80, expected);
+        await RunAsync(source, targetFramework, ReferenceAssemblies.Net.Net80, languageVersion: null, expected);
     }
 
     public static async Task VerifyAnalyzerAsync(
@@ -25,20 +26,16 @@ public static class CSharpAnalyzerVerifier<TAnalyzer>
         ReferenceAssemblies referenceAssemblies,
         params DiagnosticResult[] expected)
     {
-        var test = new CSharpAnalyzerTest<TAnalyzer, DefaultVerifier>
-        {
-            TestCode = source,
-            ReferenceAssemblies = referenceAssemblies,
-        };
+        await RunAsync(source, targetFramework, referenceAssemblies, languageVersion: null, expected);
+    }
 
-        test.TestState.AnalyzerConfigFiles.Add(
-            ("/.globalconfig", $"""
-                is_global = true
-                build_property.TargetFramework = {targetFramework}
-                """));
-
-        test.ExpectedDiagnostics.AddRange(expected);
-        await test.RunAsync();
+    /// <summary>Analyzes with .NET 8 reference assemblies at the given C# language version.</summary>
+    public static async Task VerifyAnalyzerAsync(
+        string source,
+        LanguageVersion languageVersion,
+        params DiagnosticResult[] expected)
+    {
+        await RunAsync(source, "net8.0", ReferenceAssemblies.Net.Net80, languageVersion, expected);
     }
 
     public static async Task VerifyNoDiagnosticAsync(
@@ -54,5 +51,37 @@ public static class CSharpAnalyzerVerifier<TAnalyzer>
         ReferenceAssemblies referenceAssemblies)
     {
         await VerifyAnalyzerAsync(source, targetFramework, referenceAssemblies);
+    }
+
+    private static async Task RunAsync(
+        string source,
+        string targetFramework,
+        ReferenceAssemblies referenceAssemblies,
+        LanguageVersion? languageVersion,
+        DiagnosticResult[] expected)
+    {
+        var test = new CSharpAnalyzerTest<TAnalyzer, DefaultVerifier>
+        {
+            TestCode = source,
+            ReferenceAssemblies = referenceAssemblies,
+        };
+
+        test.TestState.AnalyzerConfigFiles.Add(
+            ("/.globalconfig", $"""
+                is_global = true
+                build_property.TargetFramework = {targetFramework}
+                """));
+
+        if (languageVersion is { } version)
+        {
+            test.SolutionTransforms.Add((solution, projectId) =>
+            {
+                var parseOptions = (CSharpParseOptions)solution.GetProject(projectId)!.ParseOptions!;
+                return solution.WithProjectParseOptions(projectId, parseOptions.WithLanguageVersion(version));
+            });
+        }
+
+        test.ExpectedDiagnostics.AddRange(expected);
+        await test.RunAsync();
     }
 }

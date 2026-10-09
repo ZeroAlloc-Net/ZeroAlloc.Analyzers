@@ -6,3 +6,4 @@
 Rule ID | Category                | Severity | Notes
 --------|-------------------------|----------|----------------------------------------
 ZA0303  | Performance.Memory      | Warning  | ReturnRentedArrayAnalyzer
+ZA0210  | Performance.Strings     | Warning  | UseUtf8StringLiteralAnalyzer

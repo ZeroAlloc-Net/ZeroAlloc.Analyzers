@@ -21,6 +21,7 @@ flowchart TD
     Op -->|Parsing from Span| PA["ZA0206 — Avoid span.ToString() before Parse"]
     Op -->|Joining value types| JB["ZA0208 — Avoid boxing overload of string.Join"]
     Op -->|Concatenating value types| VB["ZA0209 — Avoid boxing in string concat"]
+    Op -->|Constant UTF-8 encoding| U8["ZA0210 — Use a u8 literal"]
 ```
 
 ---
@@ -811,4 +812,35 @@ public interface ITraceWriter
 ```csharp
 #pragma warning disable ZA0209
 // or in .editorconfig: dotnet_diagnostic.ZA0209.severity = none
+```
+
+---
+
+## ZA0210 — Use a UTF-8 string literal {#za0210}
+
+> **Severity**: Warning | **Min TFM**: Any (C# 11) | **Code fix**: Yes
+
+### Why
+
+`Encoding.UTF8.GetBytes("constant")` allocates a new array and encodes the same text on every call. Since C# 11, a `"constant"u8` literal is a `ReadOnlySpan<byte>` that points at bytes the compiler stores in the assembly, so it costs nothing at run time. The rule only reports calls whose result is used as a `ReadOnlySpan<byte>`, so the literal is a drop-in replacement. Kept as a `byte[]`, the literal would need `.ToArray()` and gains nothing.
+
+### Before
+
+```csharp
+// ❌ allocates and encodes "\r\n" on every write
+writer.Write(Encoding.UTF8.GetBytes("\r\n"));
+```
+
+### After
+
+```csharp
+// ✓ static data, no allocation
+writer.Write("\r\n"u8);
+```
+
+### Suppression
+
+```csharp
+#pragma warning disable ZA0210
+// or in .editorconfig: dotnet_diagnostic.ZA0210.severity = none
 ```
