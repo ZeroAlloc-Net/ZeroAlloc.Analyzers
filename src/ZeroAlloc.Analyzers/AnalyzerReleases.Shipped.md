@@ -119,3 +119,11 @@ ZA1706  | Performance.Aot         | Info     | MarkLibraryAotCompatibleAnalyzer
 ZA1707  | Performance.Aot         | Info     | UseConfigurationBindingGeneratorAnalyzer
 ZA1708  | Performance.Aot         | Info     | UseOptionsValidatorGeneratorAnalyzer
 ZA1709  | Performance.Aot         | Info     | AvoidDynamicAnalyzer
+
+## Release 1.9.0
+
+### New Rules
+
+Rule ID | Category                | Severity | Notes
+--------|-------------------------|----------|----------------------------------------
+ZA1710  | Performance.Aot         | Info     | AvoidAssemblyScanningRegistrationAnalyzer
