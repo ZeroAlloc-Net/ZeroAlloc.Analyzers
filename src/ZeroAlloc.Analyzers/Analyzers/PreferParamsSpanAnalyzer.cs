@@ -55,8 +55,13 @@ public sealed class PreferParamsSpanAnalyzer : DiagnosticAnalyzer
             // Methods whose parameter type is fixed by a method group, an interface or a caller.
             var excluded = new ConcurrentDictionary<IMethodSymbol, bool>(SymbolEqualityComparer.Default);
 
-            // Methods some caller passes an array to, in the params position.
-            var arrayCalls = new ConcurrentDictionary<IMethodSymbol, bool>(SymbolEqualityComparer.Default);
+            // Methods whose array callers could bind to another overload once the array needs a
+            // conversion. The advice for an exposed method keeps the array overload, so this only
+            // blocks the code fix's signature change.
+            var arrayCallRebinds = new ConcurrentDictionary<IMethodSymbol, bool>(SymbolEqualityComparer.Default);
+
+            // Whether a source method with this name has a params array, so a call may need checking.
+            var paramsArrayNames = new ConcurrentDictionary<string, bool>(StringComparer.Ordinal);
 
             // A method group converted to a delegate fixes the parameter type.
             start.RegisterOperationAction(context =>
@@ -76,14 +81,17 @@ public sealed class PreferParamsSpanAnalyzer : DiagnosticAnalyzer
                     _ => default,
                 };
 
-                if (target is null || target.Parameters.IsEmpty || !target.Parameters[target.Parameters.Length - 1].IsParams)
+                if (target is null)
                     return;
 
-                if (IsInExpressionTree(operation, expressionTreeBase) || PassesArrayOfOtherType(arguments))
+                if (IsParams(target) && (IsInExpressionTree(operation, expressionTreeBase) || PassesArrayOfOtherType(arguments)))
                     excluded[target.OriginalDefinition] = true;
 
-                if (arguments.Any(argument => argument.Parameter is { IsParams: true } && argument.ArgumentKind == ArgumentKind.Explicit))
-                    arrayCalls[target.OriginalDefinition] = true;
+                if (operation.SemanticModel is { } model
+                    && MayInvolveParamsArray(target, start.Compilation, paramsArrayNames, context.CancellationToken))
+                {
+                    CheckMethodGroup(operation, target, arguments, model, readOnlySpan, excluded, arrayCallRebinds, context.CancellationToken);
+                }
             }, OperationKind.Invocation, OperationKind.ObjectCreation);
 
             // An interface member can be implemented by a method a base class declares.
@@ -125,11 +133,9 @@ public sealed class PreferParamsSpanAnalyzer : DiagnosticAnalyzer
                     var parameter = method.Parameters[method.Parameters.Length - 1];
                     var exposed = IsVisibleOutsideAssembly(method, hasFriendAssemblies);
 
-                    // The advice for an exposed method keeps the array overload, which a caller passing
-                    // an array still binds to, so only the changed signature can rebind such a call.
-                    var checkArrayCalls = !exposed && arrayCalls.ContainsKey(method);
-                    if (HasConflictingOverload(method, checkArrayCalls, context.Compilation, readOnlySpan))
+                    if (!exposed && arrayCallRebinds.ContainsKey(method) || HasConflictingOverload(method, readOnlySpan))
                         continue;
+
                     var properties = ImmutableDictionary<string, string?>.Empty
                         .Add(ExposedProperty, exposed ? "true" : "false");
 
@@ -184,20 +190,10 @@ public sealed class PreferParamsSpanAnalyzer : DiagnosticAnalyzer
         return !InheritsFrom(method.ContainingType, attributeBase);
     }
 
-    // A call that passes separate arguments compares element conversions, which the new signature
-    // does not change. An overload can only clash with the new signature, tie-break differently as
-    // another params method, or win or tie a call that passes an array once the array needs a
-    // conversion to the span.
-    private static bool HasConflictingOverload(
-        IMethodSymbol method,
-        bool checkArrayCalls,
-        Compilation compilation,
-        INamedTypeSymbol readOnlySpan)
+    // An overload that is itself params, or that the new signature could duplicate, conflicts even
+    // without a visible call: callers in other assemblies see it too.
+    private static bool HasConflictingOverload(IMethodSymbol method, INamedTypeSymbol readOnlySpan)
     {
-        // Extension overloads in other static classes compete for the call and cannot be enumerated.
-        if (method.IsExtensionMethod && checkArrayCalls)
-            return true;
-
         // Constructors are not inherited, so only the containing type's own constructors are overloads.
         for (var type = method.ContainingType; type is not null; type = type.BaseType)
         {
@@ -205,7 +201,7 @@ public sealed class PreferParamsSpanAnalyzer : DiagnosticAnalyzer
             {
                 if (member is IMethodSymbol overload
                     && !SymbolEqualityComparer.Default.Equals(overload, method)
-                    && Conflicts(overload, method, checkArrayCalls, compilation, readOnlySpan))
+                    && Conflicts(overload, method, readOnlySpan))
                 {
                     return true;
                 }
@@ -218,37 +214,164 @@ public sealed class PreferParamsSpanAnalyzer : DiagnosticAnalyzer
         return false;
     }
 
-    private static bool Conflicts(
-        IMethodSymbol overload,
-        IMethodSymbol method,
-        bool checkArrayCalls,
-        Compilation compilation,
-        INamedTypeSymbol readOnlySpan)
+    private static bool Conflicts(IMethodSymbol overload, IMethodSymbol method, INamedTypeSymbol readOnlySpan)
     {
-        var count = method.Parameters.Length;
-        var parameters = overload.Parameters;
-
         // Between two expanded params forms, the tie-break depends on the collection type.
-        if (!parameters.IsEmpty && parameters[parameters.Length - 1].IsParams)
+        if (IsParams(overload))
             return true;
 
         // The new signature could duplicate an overload that already ends in a span.
-        if (parameters.Length == count
-            && parameters[count - 1].Type is INamedTypeSymbol last
-            && SymbolEqualityComparer.Default.Equals(last.OriginalDefinition, readOnlySpan))
-        {
-            return true;
-        }
+        var count = method.Parameters.Length;
+        return overload.Parameters.Length == count
+            && overload.Parameters[count - 1].Type is INamedTypeSymbol last
+            && SymbolEqualityComparer.Default.Equals(last.OriginalDefinition, readOnlySpan);
+    }
 
-        // An overload that cannot take as many arguments never competes for an array call.
-        if (!checkArrayCalls || parameters.Length < count)
+    private static bool IsParams(IMethodSymbol method) =>
+        !method.Parameters.IsEmpty && method.Parameters[method.Parameters.Length - 1].IsParams;
+
+    // A call needs checking when a params array method could be in its method group. Constructors
+    // are only overloaded within their type; other methods are found by name across the source.
+    private static bool MayInvolveParamsArray(
+        IMethodSymbol target,
+        Compilation compilation,
+        ConcurrentDictionary<string, bool> paramsArrayNames,
+        CancellationToken cancellationToken)
+    {
+        if (target.MethodKind == MethodKind.Constructor)
+            return target.ContainingType.InstanceConstructors.Any(HasParamsArray);
+
+        return paramsArrayNames.GetOrAdd(target.Name, name =>
+            compilation.GetSymbolsWithName(name, SymbolFilter.Member, cancellationToken)
+                .OfType<IMethodSymbol>()
+                .Any(HasParamsArray));
+    }
+
+    // The new signature changes overload resolution only for calls it competes for: calls where two
+    // params methods tie-break on their collection types, calls that bound elsewhere with an argument
+    // in its params slot that converts to the span, and calls that pass it an array, which then needs
+    // a conversion. The method group is what the compiler chose from, including extension methods in
+    // other static classes and members of derived types.
+    private static void CheckMethodGroup(
+        IOperation operation,
+        IMethodSymbol target,
+        ImmutableArray<IArgumentOperation> arguments,
+        SemanticModel model,
+        INamedTypeSymbol readOnlySpan,
+        ConcurrentDictionary<IMethodSymbol, bool> excluded,
+        ConcurrentDictionary<IMethodSymbol, bool> arrayCallRebinds,
+        CancellationToken cancellationToken)
+    {
+        var (group, syntaxArguments) = MethodGroupOf(operation.Syntax, model, cancellationToken);
+
+        // A constructor competes only with its type's other constructors.
+        var methods = target.MethodKind == MethodKind.Constructor
+            ? target.ContainingType.InstanceConstructors
+            : group.OfType<IMethodSymbol>().ToImmutableArray();
+        if (methods.Length < 2 || syntaxArguments is not { } argumentList)
+            return;
+
+        var targetDefinition = Definition(target);
+        var paramsMethods = methods.Count(IsParams);
+
+        // The argument of a call that passes an array to the target's params parameter.
+        var arrayArgument = HasParamsArray(target)
+            ? arguments.FirstOrDefault(argument =>
+                argument.Parameter is { IsParams: true } && argument.ArgumentKind == ArgumentKind.Explicit)?.Syntax as ArgumentSyntax
+            : null;
+
+        foreach (var method in methods)
+        {
+            var definition = Definition(method);
+            var isTarget = SymbolEqualityComparer.Default.Equals(definition, targetDefinition);
+
+            if (HasParamsArray(method)
+                && (paramsMethods > 1
+                    || !isTarget && ParamsSlotConvertsToSpan(method, argumentList, model, readOnlySpan, cancellationToken)))
+            {
+                excluded[definition] = true;
+            }
+
+            if (!isTarget
+                && arrayArgument is not null
+                && AcceptsArray(method, target.Parameters[target.Parameters.Length - 1].Type, arrayArgument, argumentList, model.Compilation))
+            {
+                arrayCallRebinds[targetDefinition] = true;
+            }
+        }
+    }
+
+    private static (ImmutableArray<ISymbol> Group, SeparatedSyntaxList<ArgumentSyntax>? Arguments) MethodGroupOf(
+        SyntaxNode syntax,
+        SemanticModel model,
+        CancellationToken cancellationToken) => syntax switch
+    {
+        InvocationExpressionSyntax invocation =>
+            (model.GetMemberGroup(invocation.Expression, cancellationToken), invocation.ArgumentList.Arguments),
+        BaseObjectCreationExpressionSyntax { ArgumentList: { } list } => (ImmutableArray<ISymbol>.Empty, list.Arguments),
+        ConstructorInitializerSyntax initializer => (ImmutableArray<ISymbol>.Empty, initializer.ArgumentList.Arguments),
+        _ => (ImmutableArray<ISymbol>.Empty, null),
+    };
+
+    // A reduced extension method in a member group stands for the static method it was reduced from.
+    private static IMethodSymbol Definition(IMethodSymbol method) => (method.ReducedFrom ?? method).OriginalDefinition;
+
+    // The argument a params method would take in normal form converts to its span. A type parameter
+    // element could match anything, so it counts.
+    private static bool ParamsSlotConvertsToSpan(
+        IMethodSymbol method,
+        SeparatedSyntaxList<ArgumentSyntax> arguments,
+        SemanticModel model,
+        INamedTypeSymbol readOnlySpan,
+        CancellationToken cancellationToken)
+    {
+        var parameter = method.Parameters[method.Parameters.Length - 1];
+        var slot = ArgumentFor(parameter, arguments);
+        if (slot is null)
             return false;
 
-        // The array reaches the overload by position, or by name as a named argument.
-        var paramsParameter = method.Parameters[count - 1];
-        return parameters.Any(parameter =>
-            (parameter.Ordinal == count - 1 || parameter.Name == paramsParameter.Name)
-            && Accepts(parameter.Type, paramsParameter.Type, compilation));
+        var element = ((IArrayTypeSymbol)parameter.Type).ElementType;
+        if (ContainsTypeParameter(element))
+            return true;
+
+        cancellationToken.ThrowIfCancellationRequested();
+        return model.ClassifyConversion(slot.Expression, readOnlySpan.Construct(element)).IsImplicit;
+    }
+
+    // The overload could take the array the call passes to the target's params parameter, by
+    // position or by name. A params overload is left to the tie-break check, and one that takes
+    // fewer arguments than the call passes cannot compete.
+    private static bool AcceptsArray(
+        IMethodSymbol overload,
+        ITypeSymbol arrayType,
+        ArgumentSyntax arrayArgument,
+        SeparatedSyntaxList<ArgumentSyntax> arguments,
+        Compilation compilation)
+    {
+        if (IsParams(overload) || overload.Parameters.Length < arguments.Count)
+            return false;
+
+        var name = arrayArgument.NameColon?.Name.Identifier.ValueText;
+        var index = arguments.IndexOf(arrayArgument);
+        var parameter = name is not null
+            ? overload.Parameters.FirstOrDefault(p => p.Name == name)
+            : index >= 0 && index < overload.Parameters.Length ? overload.Parameters[index] : null;
+
+        return parameter is not null && Accepts(parameter.Type, arrayType, compilation);
+    }
+
+    // In normal form the params argument is named after the parameter, or is the last positional one.
+    private static ArgumentSyntax? ArgumentFor(IParameterSymbol parameter, SeparatedSyntaxList<ArgumentSyntax> arguments)
+    {
+        foreach (var argument in arguments)
+        {
+            if (argument.NameColon?.Name.Identifier.ValueText == parameter.Name)
+                return argument;
+        }
+
+        return arguments.Count == parameter.Ordinal + 1 && arguments[parameter.Ordinal].NameColon is null
+            ? arguments[parameter.Ordinal]
+            : null;
     }
 
     // Type inference can make a type parameter accept anything, so it counts as accepting.
@@ -343,6 +466,10 @@ public sealed class PreferParamsSpanAnalyzer : DiagnosticAnalyzer
             return true;
 
         if (arguments.Any(other => other.Parameter is { RefKind: RefKind.Ref or RefKind.Out, Type.IsRefLikeType: true }))
+            return true;
+
+        // A ref struct's instance method gets 'this' by ref, so unless it is readonly it can store the span.
+        if (call is IInvocationOperation { Instance.Type.IsRefLikeType: true, TargetMethod.IsReadOnly: false })
             return true;
 
         return call.Type is { IsRefLikeType: true } && SpanValueMayEscape(call);

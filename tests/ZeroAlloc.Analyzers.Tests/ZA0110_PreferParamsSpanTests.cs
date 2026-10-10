@@ -861,6 +861,182 @@ public class ZA0110_PreferParamsSpanTests
         await CSharpAnalyzerVerifier<PreferParamsSpanAnalyzer>.VerifyNoDiagnosticAsync(source, "net8.0");
     }
 
+    [Theory]
+    // After the change these arguments convert to the span, so the params method could take the call.
+    [InlineData("static void W(object o) { } static int W(params char[] cs) => cs.Length; void M() => W(\"abc\");")]
+    [InlineData("static void W(IEnumerable<char> o) { } static int W(params char[] cs) => cs.Length; void M() => W(\"abc\");")]
+    [InlineData("static void Log(string m, Span<int> s) { } static int Log(string m, params int[] v) => v.Length; void M() => Log(\"a\", [1, 2]);")]
+    [InlineData("static void Log(string m, ReadOnlySpan<int> s, int y = 0) { } static int Log(string m, params int[] v) => v.Length; void M() => Log(\"a\", [1, 2]);")]
+    [InlineData("static void P(ReadOnlySpan<byte> s, int x = 0) { } static int P(params byte[] b) => b.Length; void M() => P(\"abc\"u8);")]
+    [InlineData("static void P(Span<int> v, int x = 0) { } static int P(params int[] v) => v.Length; void M(Span<int> s) => P(v: s);")]
+    [InlineData("static int Count<T>(params T[] v) => v.Length; static int Count(Span<int> s) => 0; int M() => Count([1, 2]);")]
+    public async Task CallToOtherOverloadCouldRebind_NoDiagnostic(string members)
+    {
+        var source = $$"""
+            using System;
+            using System.Collections.Generic;
+
+            class C
+            {
+                {{members}}
+            }
+            """;
+
+        await CSharpAnalyzerVerifier<PreferParamsSpanAnalyzer>.VerifyNoDiagnosticAsync(source, "net8.0");
+    }
+
+    [Theory]
+    [InlineData("static C Make() => new C([1, 2]);")]
+    [InlineData("static C Make() { C c = new([3]); return c; }")]
+    [InlineData("C() : this([4]) { }")]
+    public async Task ConstructorCallToOtherOverloadCouldRebind_NoDiagnostic(string member)
+    {
+        var source = $$"""
+            using System;
+
+            class C
+            {
+                C(Span<int> s) { }
+                C(params int[] values) { _ = values.Length; }
+                {{member}}
+            }
+            """;
+
+        await CSharpAnalyzerVerifier<PreferParamsSpanAnalyzer>.VerifyNoDiagnosticAsync(source, "net8.0");
+    }
+
+    [Fact]
+    public async Task ExtensionCallToOtherOverloadCouldRebind_NoDiagnostic()
+    {
+        var source = """
+            using System;
+
+            class D { }
+
+            static class E
+            {
+                public static int Sum(this D d, params int[] values) => values.Length;
+            }
+
+            static class Other
+            {
+                public static int Sum(this D d, Span<int> values) => 0;
+            }
+
+            class C
+            {
+                int M(D d) => d.Sum([1, 2]);
+            }
+            """;
+
+        await CSharpAnalyzerVerifier<PreferParamsSpanAnalyzer>.VerifyNoDiagnosticAsync(source, "net8.0");
+    }
+
+    [Fact]
+    public async Task CallToOtherOverloadThatCannotRebind_ReportsAndFixes()
+    {
+        // An int does not convert to a span of char, so W(5) keeps binding to W(object).
+        var source = """
+            using System;
+
+            class C
+            {
+                static void W(object o) { }
+                static int W(params char[] {|#0:cs|}) => cs.Length;
+
+                void M() { W(5); W('a', 'b'); }
+            }
+            """;
+
+        var fixedSource = """
+            using System;
+
+            class C
+            {
+                static void W(object o) { }
+                static int W(params ReadOnlySpan<char> cs) => cs.Length;
+
+                void M() { W(5); W('a', 'b'); }
+            }
+            """;
+
+        await CSharpCodeFixVerifier<PreferParamsSpanAnalyzer, PreferParamsSpanCodeFixProvider>
+            .VerifyCodeFixAsync(
+                source,
+                fixedSource,
+                Expected("W", elementType: "char", parameter: "cs"),
+                compilationEndDiagnostic: true,
+                languageVersion: LanguageVersion.CSharp13);
+    }
+
+    [Theory]
+    // The implicit 'ref this' of a ref struct instance method could store the span.
+    [InlineData("{ var h = new Holder(); h.Set(values); return h.Length; }")]
+    [InlineData("{ var h = new Holder(); h.Set(Same(values)); return h.Length; }")]
+    public async Task SpanPassedToRefStructInstanceMethod_NoDiagnostic(string body)
+    {
+        var source = $$"""
+            using System;
+
+            ref struct Holder
+            {
+                private ReadOnlySpan<int> _s;
+                public void Set(ReadOnlySpan<int> s) => _s = s;
+                public readonly int Peek(ReadOnlySpan<int> s) => s.Length;
+                public readonly int Length => _s.Length;
+            }
+
+            class C
+            {
+                static ReadOnlySpan<int> Same(ReadOnlySpan<int> s) => s;
+
+                static int Pass(params int[] values) {{body}}
+            }
+            """;
+
+        await CSharpAnalyzerVerifier<PreferParamsSpanAnalyzer>.VerifyNoDiagnosticAsync(source, "net8.0");
+    }
+
+    [Fact]
+    public async Task SpanPassedToReadonlyRefStructMethod_ReportsAndFixes()
+    {
+        var source = """
+            using System;
+
+            ref struct Holder
+            {
+                public readonly int Peek(ReadOnlySpan<int> s) => s.Length;
+            }
+
+            class C
+            {
+                static int Pass(params int[] {|#0:values|}) { var h = new Holder(); return h.Peek(values); }
+            }
+            """;
+
+        var fixedSource = """
+            using System;
+
+            ref struct Holder
+            {
+                public readonly int Peek(ReadOnlySpan<int> s) => s.Length;
+            }
+
+            class C
+            {
+                static int Pass(params ReadOnlySpan<int> values) { var h = new Holder(); return h.Peek(values); }
+            }
+            """;
+
+        await CSharpCodeFixVerifier<PreferParamsSpanAnalyzer, PreferParamsSpanCodeFixProvider>
+            .VerifyCodeFixAsync(
+                source,
+                fixedSource,
+                Expected("Pass"),
+                compilationEndDiagnostic: true,
+                languageVersion: LanguageVersion.CSharp13);
+    }
+
     [Fact]
     public async Task AttributeConstructor_NoDiagnostic()
     {

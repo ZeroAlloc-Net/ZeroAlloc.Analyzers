@@ -628,13 +628,14 @@ The rule reports a `params T[]` parameter whose method only reads it: indexing, 
 
 A `params ReadOnlySpan<T>` parameter is implicitly `scoped`, so it cannot leave the method. The rule therefore also skips methods that return a ref struct or return by reference, that take a `ref` or `out` parameter of a ref struct type, or that are instance members of a ref struct. It skips methods that store the array as a span in a local or field, return it, or pass it by `ref` or `out`. Passing it by value or by `in` is fine, unless the call returns by reference or takes another ref struct by `ref` or `out`. A call that returns a ref struct, such as `Inner(values).Length`, is fine too, as long as its result is used the same way and is not stored or returned. The rule also skips constructors of attribute types, whose arguments cannot bind to a span.
 
-An overload in the type or its base types only stops the rule when it could conflict with the new signature:
+An overload only stops the rule when it could conflict with the new signature:
 
-- it is itself a `params` method, because the tie-break between two `params` methods depends on the collection type;
+- it is itself a `params` method, in the type, its base types, or the method group of any call, because the tie-break between two `params` methods depends on the collection type;
 - it has the same number of parameters and ends in a `ReadOnlySpan<T>`, so the new signature could duplicate it;
-- or some caller passes an array in the `params` position, and the overload could accept that array by position or by name. After the change the array needs a conversion to the span, so that overload could win the call or make it ambiguous.
+- a call that bound to it has an argument in this method's `params` slot that would convert to the span, such as a string for `params char[]`, a collection expression or a `u8` literal, so after the change the call could bind here instead;
+- or a call passes this method an array, and the overload could accept that array by position or by name, so after the change the array needs a conversion and the overload could win or make the call ambiguous.
 
-So `Log(string)` next to `Log(string, params object[])` is reported. An extension method that a caller passes an array to is skipped, because overloads in other static classes can compete for the call. For a method other assemblies can call, only the first two count, because the advice keeps the array overload.
+The rule checks calls against the method group the compiler chose from, which includes extension methods in other static classes. So `Log(string)` next to `Log(string, params object[])` is reported. For a method other assemblies can call, the last check does not apply, because the advice keeps the array overload.
 
 For a method other assemblies can call, changing the parameter type is a binary breaking change, so the rule suggests adding a `params ReadOnlySpan<T>` overload instead and offers no code fix. Because it has to see every use of the method, the rule reports when the whole project is analyzed, on build or with full-solution analysis, not while you type. The rule needs .NET 8 or later, where `params ReadOnlySpan<T>` uses an inline array, and C# 13. When the assembly has `InternalsVisibleTo`, internal methods count as visible outside the assembly too.
 
