@@ -271,11 +271,22 @@ public sealed class PreferParamsSpanAnalyzer : DiagnosticAnalyzer
         ConcurrentDictionary<IMethodSymbol, bool> arrayCallRebinds,
         CancellationToken cancellationToken)
     {
-        var (group, syntaxArguments) = MethodGroupOf(operation.Syntax, model, cancellationToken);
+        // An implicit call, such as the Add of a collection initializer, takes the syntax of something
+        // else, like the element expression, so its own arguments cannot be read from the syntax.
+        var (group, syntaxArguments) = operation.IsImplicit
+            ? (ImmutableArray<ISymbol>.Empty, null)
+            : MethodGroupOf(operation.Syntax, model, cancellationToken);
 
-        // A call with no argument syntax of its own, such as the Add of a collection initializer or
-        // the AppendFormatted of an interpolated string handler, cannot be mapped to a params slot.
-        if (syntaxArguments is not { } argumentList)
+        // A constructor competes only with its type's other constructors.
+        var methods = target.MethodKind == MethodKind.Constructor
+            ? target.ContainingType.InstanceConstructors
+            : group.OfType<IMethodSymbol>().ToImmutableArray();
+
+        // A call whose argument syntax is unknown, or whose group does not hold the call's own target,
+        // cannot be mapped to a params slot. Such a call can bind to an extension method in any static
+        // class, so every params array method with the name is excluded.
+        if (syntaxArguments is not { } argumentList
+            || !methods.Any(method => SymbolEqualityComparer.Default.Equals(Definition(method), Definition(target))))
         {
             if (target.MethodKind == MethodKind.Constructor)
             {
@@ -290,10 +301,6 @@ public sealed class PreferParamsSpanAnalyzer : DiagnosticAnalyzer
             return;
         }
 
-        // A constructor competes only with its type's other constructors.
-        var methods = target.MethodKind == MethodKind.Constructor
-            ? target.ContainingType.InstanceConstructors
-            : group.OfType<IMethodSymbol>().ToImmutableArray();
         if (methods.Length < 2)
             return;
 

@@ -1057,6 +1057,11 @@ public class ZA0110_PreferParamsSpanTests
     // Calls the compiler makes for you, with no invocation syntax of their own.
     [InlineData("L M() => new L { \"abc\" };")]
     [InlineData("L M() { L l = [\"abc\"]; return l; }")]
+    // The implicit Add takes the element's syntax, which can be a call or creation of its own.
+    [InlineData("L M() => new L { Make() }; static string Make() => \"abc\";")]
+    [InlineData("L M() => new L { new string((char)97, 3) };")]
+    [InlineData("L M() => new L { Make(), Make(1) }; static string Make() => \"abc\"; static string Make(int n) => \"abc\";")]
+    [InlineData("H M() => new H { Items = { Make() } }; static string Make() => \"abc\"; class H { public L Items { get; } = new L(); }")]
     public async Task ImplicitAddCallCouldRebind_NoDiagnostic(string member)
     {
         var source = $$"""
