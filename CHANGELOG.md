@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.10.0](https://github.com/ZeroAlloc-Net/ZeroAlloc.Analyzers/compare/v1.9.0...v1.10.0) (2026-10-10)
+
+
+### Features
+
+* report rented buffers passed to async Stream calls in ZA0303 ([459496b](https://github.com/ZeroAlloc-Net/ZeroAlloc.Analyzers/commit/459496be3c6d0e97961fa7c1a85b9df241390d1f))
+* report using statements over a dynamic resource in ZA1709 ([459496b](https://github.com/ZeroAlloc-Net/ZeroAlloc.Analyzers/commit/459496be3c6d0e97961fa7c1a85b9df241390d1f))
+
+
+### Bug Fixes
+
+* stop ZA0303 trusting methods a Stream subclass adds ([459496b](https://github.com/ZeroAlloc-Net/ZeroAlloc.Analyzers/commit/459496be3c6d0e97961fa7c1a85b9df241390d1f))
+* trust Array and Buffer methods that take System.Array in ZA0303 ([459496b](https://github.com/ZeroAlloc-Net/ZeroAlloc.Analyzers/commit/459496be3c6d0e97961fa7c1a85b9df241390d1f))
+
 ## [1.9.0](https://github.com/ZeroAlloc-Net/ZeroAlloc.Analyzers/compare/v1.8.0...v1.9.0) (2026-10-09)
 
 
