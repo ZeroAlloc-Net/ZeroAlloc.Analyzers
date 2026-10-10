@@ -28,7 +28,7 @@ public sealed class AvoidAssemblyScanningRegistrationAnalyzer : DiagnosticAnalyz
     private static readonly string[] AutoMapperAssemblies = ["AutoMapper", "AutoMapper.Extensions.Microsoft.DependencyInjection"];
 
     private const string InjectHint = "ZeroAlloc.Inject registers services at compile time with a source generator";
-    private const string MediatorHint = "ZeroAlloc.Mediator dispatches without reflection; register its handlers with ZeroAlloc.Inject";
+    private const string MediatorHint = "ZeroAlloc.Mediator 6.2 or later registers its handlers at compile time from the generated AddMediator()";
     private const string ValidationHint = "ZeroAlloc.Validation registers validators at compile time with a source generator";
     private const string MappingHint = "ZeroAlloc.Mapping generates mappers at compile time, with no registration needed";
 
