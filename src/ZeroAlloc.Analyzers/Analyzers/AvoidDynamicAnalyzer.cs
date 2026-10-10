@@ -45,7 +45,47 @@ public sealed class AvoidDynamicAnalyzer : DiagnosticAnalyzer
                 OperationKind.Decrement,
                 OperationKind.Conversion,
                 OperationKind.Await);
+
+            // Disposing a dynamic resource binds its conversion to IDisposable at run time, but
+            // Roslyn exposes no conversion operation for it. Using is not a dispatch operation in
+            // IsDynamicDispatch, because then the outermost-only walk would hide its whole body.
+            start.RegisterOperationAction(AnalyzeUsing, OperationKind.Using, OperationKind.UsingDeclaration);
         });
+    }
+
+    private static void AnalyzeUsing(OperationAnalysisContext context)
+    {
+        var resources = context.Operation switch
+        {
+            IUsingOperation usingOperation => usingOperation.Resources,
+            IUsingDeclarationOperation declaration => declaration.DeclarationGroup,
+            _ => null,
+        };
+
+        if (resources is IVariableDeclarationGroupOperation group)
+        {
+            foreach (var declaration in group.Declarations)
+            {
+                foreach (var declarator in declaration.Declarators)
+                {
+                    if (IsDynamic(declarator.Symbol.Type))
+                        ReportResource(context, declarator.GetVariableInitializer()?.Value, declarator.Syntax);
+                }
+            }
+        }
+        else if (resources is not null && IsDynamic(resources.Type))
+        {
+            ReportResource(context, resources, resources.Syntax);
+        }
+    }
+
+    // A resource that is itself dynamic dispatch, such as d.Open(), already has its report.
+    private static void ReportResource(OperationAnalysisContext context, IOperation? value, SyntaxNode location)
+    {
+        if (value is not null && IsDynamicDispatch(value))
+            return;
+
+        context.ReportDiagnostic(Diagnostic.Create(Rule, location.GetLocation()));
     }
 
     private static void Analyze(OperationAnalysisContext context)

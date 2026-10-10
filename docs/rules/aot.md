@@ -242,7 +242,7 @@ services.AddSingleton<IValidateOptions<SmtpOptions>, SmtpOptionsValidator>();
 
 Every operation on a `dynamic` value is bound at run time by the C# runtime binder. That covers member access, method calls, indexers, operators, and conversions back to a static type. The binder inspects the object with reflection and generates code on the fly, which Native AOT cannot do and which trimming breaks. Dynamic dispatch is also far slower than a static call and allocates on every operation.
 
-The rule reports each expression that dispatches dynamically once, at its outermost dynamic operation. That includes `await` on a dynamic value, `foreach` over one, and a dynamic value used as a condition.
+The rule reports each expression that dispatches dynamically once, at its outermost dynamic operation. That includes `await` on a dynamic value, `foreach` over one, and a dynamic value used as a condition. A `using` statement or declaration over a dynamic resource is reported at the resource, because disposing it binds the conversion to `IDisposable` at run time; when the resource is itself a dynamic call, as in `using (d.Open())`, that one report covers both.
 
 Declaring or storing a `dynamic` value is not reported, because that does not call the binder. Returning one is not reported when the method's return type is `dynamic` or `object`. Returning it through any other static return type converts it to that type, and that conversion goes through the binder, so it is reported. An `is` or `as` type test on a dynamic value is not reported either: both check the run-time type without the binder.
 

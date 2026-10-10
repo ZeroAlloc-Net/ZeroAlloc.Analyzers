@@ -94,4 +94,38 @@ public class ZA1709_AvoidDynamicTests
             "net8.0",
             Expected().WithMessage("'dynamic' dispatch uses the runtime binder, which is not supported under Native AOT"));
     }
+
+    [Theory]
+    [InlineData("using ({|#0:d|}) { } return null;")]
+    [InlineData("using ({|#0:d.Open()|}) { } return null;")]
+    [InlineData("using ({|#0:d.A + c|}) { } return null;")]
+    [InlineData("using (dynamic {|#0:x = c|}) { } return null;")]
+    [InlineData("using (var {|#0:x = d|}) { } return null;")]
+    [InlineData("using (dynamic x = {|#0:d.Open()|}) { } return null;")]
+    [InlineData("using dynamic {|#0:x = c|}; return null;")]
+    [InlineData("using var {|#0:x = d|}; return null;")]
+    public async Task UsingDynamicResource_ReportsOnce(string body)
+    {
+        // Disposing a dynamic resource binds its conversion to IDisposable at run time.
+        await CSharpAnalyzerVerifier<AvoidDynamicAnalyzer>.VerifyAnalyzerAsync(WithDynamic(body), "net8.0", Expected());
+    }
+
+    [Fact]
+    public async Task UsingDynamicResource_BodyStillReports()
+    {
+        await CSharpAnalyzerVerifier<AvoidDynamicAnalyzer>.VerifyAnalyzerAsync(
+            WithDynamic("using ({|#0:d|}) { {|#1:d.Close()|}; } return null;"),
+            "net8.0",
+            Expected(),
+            CSharpAnalyzerVerifier<AvoidDynamicAnalyzer>.Diagnostic(DiagnosticIds.AvoidDynamic).WithLocation(1));
+    }
+
+    [Theory]
+    [InlineData("using ((IDisposable)c) { } return null;")]
+    [InlineData("using (d as IDisposable) { } return null;")]
+    [InlineData("using (IDisposable x = (IDisposable)c, y = null) { } return null;")]
+    public async Task UsingStaticResource_NoDiagnostic(string body)
+    {
+        await CSharpAnalyzerVerifier<AvoidDynamicAnalyzer>.VerifyNoDiagnosticAsync(WithDynamic(body), "net8.0");
+    }
 }
