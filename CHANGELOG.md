@@ -1,5 +1,21 @@
 # Changelog
 
+## [1.11.0](https://github.com/ZeroAlloc-Net/ZeroAlloc.Analyzers/compare/v1.10.0...v1.11.0) (2026-10-10)
+
+
+### Features
+
+* follow spans through calls and in arguments in ZA0110 ([8161f85](https://github.com/ZeroAlloc-Net/ZeroAlloc.Analyzers/commit/8161f85c01d185cdbc858729946da7a361dca367))
+* report overloaded params methods in ZA0110 when no overload can conflict ([8161f85](https://github.com/ZeroAlloc-Net/ZeroAlloc.Analyzers/commit/8161f85c01d185cdbc858729946da7a361dca367))
+
+
+### Bug Fixes
+
+* check extension overloads in other static classes before ZA0110 reports ([8161f85](https://github.com/ZeroAlloc-Net/ZeroAlloc.Analyzers/commit/8161f85c01d185cdbc858729946da7a361dca367))
+* import System for ZA0110's fix on generic methods ([8161f85](https://github.com/ZeroAlloc-Net/ZeroAlloc.Analyzers/commit/8161f85c01d185cdbc858729946da7a361dca367))
+* point ZA1710's Mediator hint at the generated AddMediator ([#105](https://github.com/ZeroAlloc-Net/ZeroAlloc.Analyzers/issues/105)) ([df408da](https://github.com/ZeroAlloc-Net/ZeroAlloc.Analyzers/commit/df408da0278a189d8490ed7874d508995fbad442))
+* stop ZA0110 treating a span passed to a ref struct instance method as used up ([8161f85](https://github.com/ZeroAlloc-Net/ZeroAlloc.Analyzers/commit/8161f85c01d185cdbc858729946da7a361dca367))
+
 ## [1.10.0](https://github.com/ZeroAlloc-Net/ZeroAlloc.Analyzers/compare/v1.9.0...v1.10.0) (2026-10-10)
 
 
