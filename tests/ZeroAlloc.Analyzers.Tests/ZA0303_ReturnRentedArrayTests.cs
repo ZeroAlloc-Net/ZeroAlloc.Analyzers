@@ -411,4 +411,99 @@ public class ZA0303_ReturnRentedArrayTests
         await CSharpAnalyzerVerifier<ReturnRentedArrayAnalyzer>
             .VerifyAnalyzerAsync(source, "net8.0", Expected("buffer"));
     }
+
+    [Theory]
+    [InlineData("var read = await stream.ReadAsync(buffer, 0, buffer.Length);")]
+    [InlineData("var read = await stream.ReadAsync(buffer);")]
+    [InlineData("var read = await stream.ReadAsync(buffer.AsMemory(0, 8));")]
+    [InlineData("var read = await stream.ReadAsync(new Memory<byte>(buffer, 0, 8));")]
+    [InlineData("await stream.WriteAsync(buffer, 0, 4); var read = 0;")]
+    [InlineData("await stream.WriteAsync((ReadOnlyMemory<byte>)buffer); var read = 0;")]
+    [InlineData("var task = stream.ReadAsync(buffer, 0, 8); var read = await task;")]
+    public async Task PassedToAsyncStreamCall_Reports(string statement)
+    {
+        // Stream does not keep the buffer once the returned task completes.
+        var source = $$"""
+            using System;
+            using System.Buffers;
+            using System.IO;
+            using System.Threading.Tasks;
+
+            class C
+            {
+                async Task<int> M(Stream stream)
+                {
+                    var buffer = {|#0:ArrayPool<byte>.Shared.Rent(16)|};
+                    {{statement}}
+                    return read;
+                }
+            }
+            """;
+
+        await CSharpAnalyzerVerifier<ReturnRentedArrayAnalyzer>
+            .VerifyAnalyzerAsync(source, "net8.0", Expected("buffer"));
+    }
+
+    [Fact]
+    public async Task PassedToAsyncStreamCallAndReturnedInFinally_NoDiagnostic()
+    {
+        var source = """
+            using System;
+            using System.Buffers;
+            using System.IO;
+            using System.Threading.Tasks;
+
+            class C
+            {
+                async Task<int> M(Stream stream)
+                {
+                    var buffer = ArrayPool<byte>.Shared.Rent(16);
+                    try
+                    {
+                        return await stream.ReadAsync(buffer.AsMemory(0, 8));
+                    }
+                    finally
+                    {
+                        ArrayPool<byte>.Shared.Return(buffer);
+                    }
+                }
+            }
+            """;
+
+        await CSharpAnalyzerVerifier<ReturnRentedArrayAnalyzer>
+            .VerifyAnalyzerAsync(source, "net8.0");
+    }
+
+    [Theory]
+    [InlineData("_memory = buffer; return await stream.ReadAsync(_memory);")]
+    [InlineData("_memory = buffer.AsMemory(0, 8); return await stream.ReadAsync(_memory);")]
+    [InlineData("Memory<byte> memory = buffer; return await stream.ReadAsync(memory);")]
+    [InlineData("var memory = buffer.AsMemory(); return await stream.ReadAsync(memory);")]
+    [InlineData("return await Read(stream, buffer);")]
+    public async Task MemoryStoredOrPassedToOtherAsyncCall_NoDiagnostic(string statements)
+    {
+        // Only a conversion passed straight into a Stream call is known not to escape.
+        var source = $$"""
+            using System;
+            using System.Buffers;
+            using System.IO;
+            using System.Threading.Tasks;
+
+            class C
+            {
+                private Memory<byte> _memory;
+
+                private static Task<int> Read(Stream stream, byte[] buffer) => stream.ReadAsync(buffer, 0, 8);
+
+                async Task<int> M(Stream stream)
+                {
+                    var buffer = ArrayPool<byte>.Shared.Rent(16);
+                    {{statements}}
+                }
+            }
+            """;
+
+        await CSharpAnalyzerVerifier<ReturnRentedArrayAnalyzer>
+            .VerifyAnalyzerAsync(source, "net8.0");
+    }
 }
