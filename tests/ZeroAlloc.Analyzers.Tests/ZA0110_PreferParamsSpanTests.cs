@@ -1038,6 +1038,72 @@ public class ZA0110_PreferParamsSpanTests
     }
 
     [Fact]
+    public async Task PrimaryConstructorBaseCallCouldRebind_NoDiagnostic()
+    {
+        var source = """
+            class B
+            {
+                public B(object o) { }
+                public B(params char[] cs) { _ = cs.Length; }
+            }
+
+            class D() : B("abc");
+            """;
+
+        await CSharpAnalyzerVerifier<PreferParamsSpanAnalyzer>.VerifyNoDiagnosticAsync(source, "net8.0");
+    }
+
+    [Theory]
+    // Calls the compiler makes for you, with no invocation syntax of their own.
+    [InlineData("L M() => new L { \"abc\" };")]
+    [InlineData("L M() { L l = [\"abc\"]; return l; }")]
+    public async Task ImplicitAddCallCouldRebind_NoDiagnostic(string member)
+    {
+        var source = $$"""
+            using System.Collections;
+
+            class L : IEnumerable
+            {
+                public void Add(object o) { }
+                public int Add(params char[] cs) => cs.Length;
+                public IEnumerator GetEnumerator() => null;
+            }
+
+            class C
+            {
+                {{member}}
+            }
+            """;
+
+        await CSharpAnalyzerVerifier<PreferParamsSpanAnalyzer>.VerifyNoDiagnosticAsync(source, "net8.0");
+    }
+
+    [Fact]
+    public async Task InterpolatedStringHandlerCallCouldRebind_NoDiagnostic()
+    {
+        var source = """
+            using System.Runtime.CompilerServices;
+
+            [InterpolatedStringHandler]
+            struct H
+            {
+                public H(int literalLength, int formattedCount) { }
+                public void AppendLiteral(string s) { }
+                public void AppendFormatted(object o) { }
+                public int AppendFormatted(params char[] cs) => cs.Length;
+            }
+
+            class C
+            {
+                static void Use(H h) { }
+                void M() => Use($"x{"abc"}");
+            }
+            """;
+
+        await CSharpAnalyzerVerifier<PreferParamsSpanAnalyzer>.VerifyNoDiagnosticAsync(source, "net8.0");
+    }
+
+    [Fact]
     public async Task AttributeConstructor_NoDiagnostic()
     {
         // Attribute arguments cannot bind to a span parameter.

@@ -94,6 +94,15 @@ public sealed class PreferParamsSpanAnalyzer : DiagnosticAnalyzer
                 }
             }, OperationKind.Invocation, OperationKind.ObjectCreation);
 
+            // A collection expression calls Add for each element without an operation for the call.
+            start.RegisterOperationAction(context =>
+            {
+                if (((ICollectionExpressionOperation)context.Operation).Elements.IsEmpty)
+                    return;
+
+                ExcludeParamsArrayMethodsNamed("Add", start.Compilation, excluded, context.CancellationToken);
+            }, OperationKind.CollectionExpression);
+
             // An interface member can be implemented by a method a base class declares.
             start.RegisterSymbolAction(context =>
             {
@@ -264,11 +273,28 @@ public sealed class PreferParamsSpanAnalyzer : DiagnosticAnalyzer
     {
         var (group, syntaxArguments) = MethodGroupOf(operation.Syntax, model, cancellationToken);
 
+        // A call with no argument syntax of its own, such as the Add of a collection initializer or
+        // the AppendFormatted of an interpolated string handler, cannot be mapped to a params slot.
+        if (syntaxArguments is not { } argumentList)
+        {
+            if (target.MethodKind == MethodKind.Constructor)
+            {
+                foreach (var constructor in target.ContainingType.InstanceConstructors.Where(HasParamsArray))
+                    excluded[constructor.OriginalDefinition] = true;
+            }
+            else
+            {
+                ExcludeParamsArrayMethodsNamed(target.Name, model.Compilation, excluded, cancellationToken);
+            }
+
+            return;
+        }
+
         // A constructor competes only with its type's other constructors.
         var methods = target.MethodKind == MethodKind.Constructor
             ? target.ContainingType.InstanceConstructors
             : group.OfType<IMethodSymbol>().ToImmutableArray();
-        if (methods.Length < 2 || syntaxArguments is not { } argumentList)
+        if (methods.Length < 2)
             return;
 
         var targetDefinition = Definition(target);
@@ -310,8 +336,24 @@ public sealed class PreferParamsSpanAnalyzer : DiagnosticAnalyzer
             (model.GetMemberGroup(invocation.Expression, cancellationToken), invocation.ArgumentList.Arguments),
         BaseObjectCreationExpressionSyntax { ArgumentList: { } list } => (ImmutableArray<ISymbol>.Empty, list.Arguments),
         ConstructorInitializerSyntax initializer => (ImmutableArray<ISymbol>.Empty, initializer.ArgumentList.Arguments),
+        PrimaryConstructorBaseTypeSyntax baseType => (ImmutableArray<ISymbol>.Empty, baseType.ArgumentList.Arguments),
         _ => (ImmutableArray<ISymbol>.Empty, null),
     };
+
+    // An implicit call can bind to an extension method in any static class, so every source method
+    // with the name and a params array is excluded.
+    private static void ExcludeParamsArrayMethodsNamed(
+        string name,
+        Compilation compilation,
+        ConcurrentDictionary<IMethodSymbol, bool> excluded,
+        CancellationToken cancellationToken)
+    {
+        foreach (var method in compilation.GetSymbolsWithName(name, SymbolFilter.Member, cancellationToken).OfType<IMethodSymbol>())
+        {
+            if (HasParamsArray(method))
+                excluded[method.OriginalDefinition] = true;
+        }
+    }
 
     // A reduced extension method in a member group stands for the static method it was reduced from.
     private static IMethodSymbol Definition(IMethodSymbol method) => (method.ReducedFrom ?? method).OriginalDefinition;
