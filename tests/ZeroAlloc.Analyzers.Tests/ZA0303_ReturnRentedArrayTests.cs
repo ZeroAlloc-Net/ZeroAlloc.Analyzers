@@ -562,4 +562,57 @@ public class ZA0303_ReturnRentedArrayTests
         await CSharpAnalyzerVerifier<ReturnRentedArrayAnalyzer>
             .VerifyAnalyzerAsync(source, "net8.0", Expected("buffer"));
     }
+
+    [Theory]
+    [InlineData("Array.Copy(buffer, new byte[4], 4);")]
+    [InlineData("Array.Clear(buffer);")]
+    [InlineData("Array.Clear(buffer, 0, 4);")]
+    [InlineData("Buffer.BlockCopy(buffer, 0, new byte[4], 0, 4);")]
+    public async Task PassedToArrayOrBufferAsArray_Reports(string statement)
+    {
+        // These take System.Array, so the rented array reaches them through a reference conversion.
+        var source = $$"""
+            using System;
+            using System.Buffers;
+
+            class C
+            {
+                int M()
+                {
+                    var buffer = {|#0:ArrayPool<byte>.Shared.Rent(16)|};
+                    {{statement}}
+                    return buffer.Length;
+                }
+            }
+            """;
+
+        await CSharpAnalyzerVerifier<ReturnRentedArrayAnalyzer>
+            .VerifyAnalyzerAsync(source, "net8.0", Expected("buffer"));
+    }
+
+    [Fact]
+    public async Task ConvertedToArrayForUntrustedCall_NoDiagnostic()
+    {
+        var source = """
+            using System;
+            using System.Buffers;
+
+            class C
+            {
+                private Array _kept;
+
+                private void Keep(Array array) => _kept = array;
+
+                int M()
+                {
+                    var buffer = ArrayPool<byte>.Shared.Rent(16);
+                    Keep(buffer);
+                    return buffer.Length;
+                }
+            }
+            """;
+
+        await CSharpAnalyzerVerifier<ReturnRentedArrayAnalyzer>
+            .VerifyAnalyzerAsync(source, "net8.0");
+    }
 }

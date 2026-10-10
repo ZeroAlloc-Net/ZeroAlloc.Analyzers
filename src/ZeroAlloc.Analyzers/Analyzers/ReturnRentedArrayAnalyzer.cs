@@ -155,16 +155,16 @@ public sealed class ReturnRentedArrayAnalyzer : DiagnosticAnalyzer
         switch (reference.Parent)
         {
             case IArgumentOperation { Parent: IInvocationOperation call } argument:
-                if (call.TargetMethod.Name == "Return" && known.IsArrayPool(call.TargetMethod.ContainingType))
-                    return true;
-                if (argument.Parameter?.RefKind != RefKind.None || !known.IsTrusted(call.TargetMethod))
-                    return true;
-                return !IsNonRetainingCall(call, known) && !IsMemoryPassedToAsyncStreamCall(call, known);
+                return IsReturnedOrEscapingArgument(argument, call, known);
             case IArgumentOperation { Parent: IObjectCreationOperation creation }:
                 return !known.IsSpan(creation.Type) && !IsMemoryPassedToAsyncStreamCall(creation, known);
             case IConversionOperation conversion:
                 if (conversion.Parent is IForEachLoopOperation)
                     return false;
+                // Array and Buffer methods take System.Array, so the array reaches them converted.
+                if (conversion.Type?.SpecialType == SpecialType.System_Array
+                    && conversion.Parent is IArgumentOperation { Parent: IInvocationOperation arrayCall } arrayArgument)
+                    return IsReturnedOrEscapingArgument(arrayArgument, arrayCall, known);
                 return !known.IsSpan(conversion.Type) && !IsMemoryPassedToAsyncStreamCall(conversion, known);
             case IArrayElementReferenceOperation element:
                 return element.ArrayReference != reference;
@@ -177,6 +177,18 @@ public sealed class ReturnRentedArrayAnalyzer : DiagnosticAnalyzer
             default:
                 return true;
         }
+    }
+
+    private static bool IsReturnedOrEscapingArgument(
+        IArgumentOperation argument,
+        IInvocationOperation call,
+        KnownTypes known)
+    {
+        if (call.TargetMethod.Name == "Return" && known.IsArrayPool(call.TargetMethod.ContainingType))
+            return true;
+        if (argument.Parameter?.RefKind != RefKind.None || !known.IsTrusted(call.TargetMethod))
+            return true;
+        return !IsNonRetainingCall(call, known) && !IsMemoryPassedToAsyncStreamCall(call, known);
     }
 
     // A trusted call gives the pool no way back to its array when it returns void, a primitive or
