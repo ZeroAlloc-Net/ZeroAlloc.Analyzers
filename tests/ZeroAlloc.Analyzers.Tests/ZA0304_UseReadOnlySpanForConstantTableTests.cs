@@ -397,4 +397,41 @@ public class ZA0304_UseReadOnlySpanForConstantTableTests
                 """));
         return test;
     }
+
+    [Fact]
+    public async Task TwoDiagnosticsWithoutSystemImport_FixAllAddsOneImport()
+    {
+        var source = """
+            class C
+            {
+                private static readonly byte[] {|#0:Table|} = { 1, 2, 3 };
+                private static readonly int[] {|#1:Weights|} = { 4, 5 };
+
+                int M(int i) => Table[i] + Weights[i];
+            }
+            """;
+
+        var fixedSource = """
+            using System;
+
+            class C
+            {
+                private static ReadOnlySpan<byte> Table => [1, 2, 3];
+                private static ReadOnlySpan<int> Weights => [4, 5];
+
+                int M(int i) => Table[i] + Weights[i];
+            }
+            """;
+
+        await CSharpCodeFixVerifier<UseReadOnlySpanForConstantTableAnalyzer, UseReadOnlySpanForConstantTableCodeFixProvider>
+            .VerifyFixAllAsync(source, fixedSource,
+            [
+                Expected("Table", "byte"),
+                CSharpAnalyzerVerifier<UseReadOnlySpanForConstantTableAnalyzer>
+                    .Diagnostic(DiagnosticIds.UseReadOnlySpanForConstantTable)
+                    .WithLocation(1)
+                    .WithArguments("Weights", "int"),
+            ],
+            compilationEndDiagnostic: true);
+    }
 }

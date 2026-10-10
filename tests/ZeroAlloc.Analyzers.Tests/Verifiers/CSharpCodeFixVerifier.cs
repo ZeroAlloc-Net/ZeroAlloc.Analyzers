@@ -76,6 +76,34 @@ public static class CSharpCodeFixVerifier<TAnalyzer, TCodeFix>
         await test.RunAsync();
     }
 
+    /// <summary>Verifies that one Fix All pass over the document fixes every diagnostic in it.</summary>
+    public static async Task VerifyFixAllAsync(
+        string source,
+        string fixedSource,
+        DiagnosticResult[] expected,
+        bool compilationEndDiagnostic = false)
+    {
+        var test = new CSharpCodeFixTest<TAnalyzer, TCodeFix, DefaultVerifier>
+        {
+            TestCode = source,
+            FixedCode = fixedSource,
+            ReferenceAssemblies = ReferenceAssemblies.Net.Net80,
+            NumberOfFixAllInDocumentIterations = 1,
+        };
+
+        if (compilationEndDiagnostic)
+            test.CodeFixTestBehaviors |= CodeFixTestBehaviors.SkipLocalDiagnosticCheck;
+
+        test.TestState.AnalyzerConfigFiles.Add(
+            ("/.globalconfig", """
+                is_global = true
+                build_property.TargetFramework = net8.0
+                """));
+
+        test.ExpectedDiagnostics.AddRange(expected);
+        await test.RunAsync();
+    }
+
     /// <summary>Verifies a fix in the first document while the others stay unchanged.</summary>
     public static async Task VerifyCodeFixWithOtherDocumentsAsync(
         string source,
