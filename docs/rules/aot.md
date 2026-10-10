@@ -297,12 +297,12 @@ builder.Services.AddAutoMapper(typeof(Program).Assembly);                     //
 ### After
 
 ```csharp
-// ✓ handlers and services are marked, and the generated methods register them
+// ✓ the generated methods register everything at compile time
 [Transient]
-public class CreateOrderHandler : IRequestHandler<CreateOrder, OrderId> { /* ... */ }
+public class OrderService : IOrderService { /* ... */ }
 
-builder.Services.AddMediator();            // ZeroAlloc.Mediator: registers IMediator only
-builder.Services.AddMyAppServices();       // ZeroAlloc.Inject: registers the marked handlers and services
+builder.Services.AddMediator();            // ZeroAlloc.Mediator 6.2+: registers IMediator and every handler
+builder.Services.AddMyAppServices();       // ZeroAlloc.Inject: registers the marked services
 builder.Services.AddZeroAllocValidators(); // ZeroAlloc.Validation.Inject: validators found by the source generator
 ```
 
