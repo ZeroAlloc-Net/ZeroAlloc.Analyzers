@@ -254,4 +254,41 @@ public class ZA0109_AvoidZeroLengthArrayAllocationTests
         await CSharpCodeFixVerifier<AvoidZeroLengthArrayAllocationAnalyzer, AvoidZeroLengthArrayAllocationCodeFixProvider>
             .VerifyCodeFixAsync(source, fixedSource, expected);
     }
+
+    [Fact]
+    public async Task TwoDiagnosticsWithoutSystemImport_FixAllAddsOneImport()
+    {
+        var source = """
+            class C
+            {
+                void M()
+                {
+                    var a = {|#0:new int[0]|};
+                    var b = {|#1:new string[0]|};
+                }
+            }
+            """;
+
+        var fixedSource = """
+            using System;
+
+            class C
+            {
+                void M()
+                {
+                    var a = Array.Empty<int>();
+                    var b = Array.Empty<string>();
+                }
+            }
+            """;
+
+        await CSharpCodeFixVerifier<AvoidZeroLengthArrayAllocationAnalyzer, AvoidZeroLengthArrayAllocationCodeFixProvider>
+            .VerifyFixAllAsync(source, fixedSource,
+            [
+                CSharpAnalyzerVerifier<AvoidZeroLengthArrayAllocationAnalyzer>
+                    .Diagnostic(DiagnosticIds.AvoidZeroLengthArrayAllocation).WithLocation(0).WithArguments("int"),
+                CSharpAnalyzerVerifier<AvoidZeroLengthArrayAllocationAnalyzer>
+                    .Diagnostic(DiagnosticIds.AvoidZeroLengthArrayAllocation).WithLocation(1).WithArguments("string"),
+            ]);
+    }
 }

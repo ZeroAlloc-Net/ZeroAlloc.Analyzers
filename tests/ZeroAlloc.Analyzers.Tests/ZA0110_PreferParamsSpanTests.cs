@@ -653,4 +653,39 @@ public class ZA0110_PreferParamsSpanTests
         await CSharpAnalyzerVerifier<PreferParamsSpanAnalyzer>
             .VerifyAnalyzerAsync(source, "net8.0", Expected("C"));
     }
+
+    [Fact]
+    public async Task TwoDiagnosticsWithoutSystemImport_FixAllAddsOneImport()
+    {
+        var source = """
+            class C
+            {
+                static int Sum(params int[] {|#0:values|}) => values.Length;
+
+                static int Count(params string[] {|#1:names|}) => names.Length;
+            }
+            """;
+
+        var fixedSource = """
+            using System;
+
+            class C
+            {
+                static int Sum(params ReadOnlySpan<int> values) => values.Length;
+
+                static int Count(params ReadOnlySpan<string> names) => names.Length;
+            }
+            """;
+
+        await CSharpCodeFixVerifier<PreferParamsSpanAnalyzer, PreferParamsSpanCodeFixProvider>
+            .VerifyFixAllAsync(source, fixedSource,
+            [
+                Expected("Sum"),
+                CSharpAnalyzerVerifier<PreferParamsSpanAnalyzer>
+                    .Diagnostic(DiagnosticIds.PreferParamsSpan)
+                    .WithLocation(1)
+                    .WithArguments("names", "Count", "string", ""),
+            ],
+            compilationEndDiagnostic: true);
+    }
 }

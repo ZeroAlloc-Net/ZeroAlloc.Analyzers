@@ -45,7 +45,71 @@ public sealed class AvoidDynamicAnalyzer : DiagnosticAnalyzer
                 OperationKind.Decrement,
                 OperationKind.Conversion,
                 OperationKind.Await);
+
+            // Disposing a dynamic resource binds its conversion to IDisposable at run time, but
+            // Roslyn exposes no conversion operation for it. Using is not a dispatch operation in
+            // IsDynamicDispatch, because then the outermost-only walk would hide its whole body.
+            start.RegisterOperationAction(AnalyzeUsing, OperationKind.Using, OperationKind.UsingDeclaration);
         });
+    }
+
+    private static void AnalyzeUsing(OperationAnalysisContext context)
+    {
+        var resources = context.Operation switch
+        {
+            IUsingOperation usingOperation => usingOperation.Resources,
+            IUsingDeclarationOperation declaration => declaration.DeclarationGroup,
+            _ => null,
+        };
+
+        if (resources is IVariableDeclarationGroupOperation group)
+        {
+            foreach (var declaration in group.Declarations)
+            {
+                foreach (var declarator in declaration.Declarators)
+                {
+                    if (IsDynamic(declarator.Symbol.Type))
+                        context.ReportDiagnostic(Diagnostic.Create(Rule, declarator.Syntax.GetLocation()));
+                }
+            }
+        }
+        else if (resources is not null && IsDynamic(resources.Type))
+        {
+            context.ReportDiagnostic(Diagnostic.Create(Rule, resources.Syntax.GetLocation()));
+        }
+    }
+
+    // True when the operation sits in the resource of a using whose resource is dynamic: the
+    // expression of using (d.Open()), or the initializer of a dynamic declarator in a using
+    // declaration. The using report covers it, as in using (d.Open() ?? c).
+    private static bool IsInDynamicUsingResource(IOperation operation)
+    {
+        IVariableDeclaratorOperation? declarator = null;
+        var child = operation;
+        for (var parent = operation.Parent; parent is not null; child = parent, parent = parent.Parent)
+        {
+            if (parent is IVariableDeclaratorOperation current)
+                declarator = current;
+
+            var isResource = parent switch
+            {
+                IUsingOperation usingOperation => usingOperation.Resources == child,
+                IUsingDeclarationOperation => true,
+                _ => (bool?)null,
+            };
+
+            if (isResource is { } found)
+            {
+                if (!found)
+                    return false;
+
+                return child is IVariableDeclarationGroupOperation
+                    ? declarator is not null && IsDynamic(declarator.Symbol.Type)
+                    : IsDynamic(child.Type);
+            }
+        }
+
+        return false;
     }
 
     private static void Analyze(OperationAnalysisContext context)
@@ -59,6 +123,10 @@ public sealed class AvoidDynamicAnalyzer : DiagnosticAnalyzer
             if (IsDynamicDispatch(parent))
                 return;
         }
+
+        // A dynamic using resource is outermost; AnalyzeUsing reports it.
+        if (IsInDynamicUsingResource(context.Operation))
+            return;
 
         context.ReportDiagnostic(Diagnostic.Create(Rule, context.Operation.Syntax.GetLocation()));
     }
