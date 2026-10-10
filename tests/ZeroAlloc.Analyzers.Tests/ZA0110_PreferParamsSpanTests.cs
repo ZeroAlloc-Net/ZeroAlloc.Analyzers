@@ -555,12 +555,95 @@ public class ZA0110_PreferParamsSpanTests
     }
 
     [Theory]
-    [InlineData("static int Sum(params int[] values) => values.Length; static int Sum(ReadOnlySpan<int> values) => 0;")]
-    [InlineData("static int Sum(params int[] values) => values.Length; static int Sum(IEnumerable<int> values) => 0;")]
-    [InlineData("C(params int[] values) { _ = values.Length; } C(string name) { }")]
-    public async Task MethodWithOverload_NoDiagnostic(string members)
+    [InlineData("static void Log(string message) { }", "Log(\"a\"); Log(\"a\", 1, 2);")]
+    [InlineData("static void Log(string message, object first, object second) { }", "Log(\"a\", 1, 2); Log(\"a\", 1, 2, 3);")]
+    [InlineData("static void Log(string message, object item) { }", "Log(\"a\", 1); Log(\"a\", 1, 2);")]
+    [InlineData("static void Log(string message, IEnumerable<object> items) { }", "Log(\"a\", new List<object>()); Log(\"a\", 1, 2);")]
+    [InlineData("static void Log<T>(string message, T item) { }", "Log(\"a\", 1); Log(\"a\", 1, 2);")]
+    public async Task OverloadThatCannotConflict_ReportsAndFixes(string overload, string calls)
     {
-        // The new signature could clash with, or change which overload callers bind to.
+        // Calls that pass separate arguments compare element conversions, which the fix does not change.
+        var source = $$"""
+            using System;
+            using System.Collections.Generic;
+
+            class C
+            {
+                {{overload}}
+                static int Log(string message, params object[] {|#0:args|}) => args.Length;
+
+                void M() { {{calls}} }
+            }
+            """;
+
+        var fixedSource = $$"""
+            using System;
+            using System.Collections.Generic;
+
+            class C
+            {
+                {{overload}}
+                static int Log(string message, params ReadOnlySpan<object> args) => args.Length;
+
+                void M() { {{calls}} }
+            }
+            """;
+
+        await CSharpCodeFixVerifier<PreferParamsSpanAnalyzer, PreferParamsSpanCodeFixProvider>
+            .VerifyCodeFixAsync(
+                source,
+                fixedSource,
+                Expected("Log", elementType: "object", parameter: "args"),
+                compilationEndDiagnostic: true,
+                languageVersion: LanguageVersion.CSharp13);
+    }
+
+    [Fact]
+    public async Task ConstructorWithOverloadThatCannotConflict_Reports()
+    {
+        var source = """
+            class C
+            {
+                C(params int[] {|#0:values|}) { _ = values.Length; }
+                C(string name) { }
+            }
+            """;
+
+        await CSharpAnalyzerVerifier<PreferParamsSpanAnalyzer>.VerifyAnalyzerAsync(source, "net8.0", Expected("C"));
+    }
+
+    [Fact]
+    public async Task ExposedMethodWithOverloadAcceptingTheArray_ReportsOverloadAdvice()
+    {
+        // The advice keeps the array overload, so a caller passing an array still binds to it.
+        var source = """
+            public class C
+            {
+                public static void Log(string message, object item) { }
+                public static int Log(string message, params object[] {|#0:args|}) => args.Length;
+
+                void M(object[] items) => Log("a", items);
+            }
+            """;
+
+        await CSharpAnalyzerVerifier<PreferParamsSpanAnalyzer>
+            .VerifyAnalyzerAsync(source, "net8.0", Expected("Log", ExposedSuffix, "object", "args"));
+    }
+
+    [Theory]
+    // The fixed signature would duplicate an existing one.
+    [InlineData("static int Sum(params int[] values) => values.Length; static int Sum(ReadOnlySpan<int> values) => 0;")]
+    [InlineData("static int Sum(params int[] values) => values.Length; static int Sum(ReadOnlySpan<long> values) => 0;")]
+    // Tie-breaks between two params methods depend on the collection type.
+    [InlineData("static int Sum(params int[] values) => values.Length; static int Sum(params IEnumerable<int> values) => 0;")]
+    [InlineData("static int Sum(params int[] values) => values.Length; static int Sum(string name, params int[] values) => 0;")]
+    // A caller passes an array, which another overload could then win or make ambiguous.
+    [InlineData("static int Sum(params int[] values) => values.Length; static int Sum(IEnumerable<int> values) => 0; int M(int[] a) => Sum(a);")]
+    [InlineData("static int Sum(params int[] values) => values.Length; static int Sum(object values) => 0; int M() => Sum(new[] { 1 });")]
+    [InlineData("static int Sum(params int[] values) => values.Length; static int Sum<T>(T values) => 0; int M(int[] a) => Sum(a);")]
+    [InlineData("static int Sum(params int[] values) => values.Length; static int Sum(object other = null, object values = null) => 0; int M(int[] a) => Sum(values: a);")]
+    public async Task OverloadThatCanConflict_NoDiagnostic(string members)
+    {
         var source = $$"""
             using System;
             using System.Collections.Generic;
@@ -575,7 +658,46 @@ public class ZA0110_PreferParamsSpanTests
     }
 
     [Fact]
-    public async Task MethodWithOverloadInBaseType_NoDiagnostic()
+    public async Task ArrayCallWithOverloadAcceptingIt_NoDiagnostic()
+    {
+        // In C# 13, Count("a", items) would be ambiguous between object and params ReadOnlySpan<object>.
+        var source = """
+            class C
+            {
+                static void Count(string message, object item) { }
+                static int Count(string message, params object[] items) => items.Length;
+
+                void M(object[] items) => Count("a", items);
+            }
+            """;
+
+        await CSharpAnalyzerVerifier<PreferParamsSpanAnalyzer>.VerifyNoDiagnosticAsync(source, "net8.0");
+    }
+
+    [Fact]
+    public async Task OverloadInBaseType_WithoutArrayCall_Reports()
+    {
+        var source = """
+            using System.Collections.Generic;
+
+            class B
+            {
+                protected static int Sum(IEnumerable<int> values) => 0;
+            }
+
+            class C : B
+            {
+                static int Sum(params int[] {|#0:values|}) => values.Length;
+
+                int M() => Sum(1, 2);
+            }
+            """;
+
+        await CSharpAnalyzerVerifier<PreferParamsSpanAnalyzer>.VerifyAnalyzerAsync(source, "net8.0", Expected("Sum"));
+    }
+
+    [Fact]
+    public async Task OverloadInBaseType_WithArrayCall_NoDiagnostic()
     {
         var source = """
             using System.Collections.Generic;
@@ -588,6 +710,54 @@ public class ZA0110_PreferParamsSpanTests
             class C : B
             {
                 static int Sum(params int[] values) => values.Length;
+
+                int M(int[] a) => Sum(a);
+            }
+            """;
+
+        await CSharpAnalyzerVerifier<PreferParamsSpanAnalyzer>.VerifyNoDiagnosticAsync(source, "net8.0");
+    }
+
+    [Fact]
+    public async Task ExtensionMethod_WithoutArrayCall_Reports()
+    {
+        var source = """
+            class D { }
+
+            static class E
+            {
+                public static int Sum(this D d, params int[] {|#0:values|}) => values.Length;
+            }
+
+            class C
+            {
+                int M(D d) => d.Sum(1, 2);
+            }
+            """;
+
+        await CSharpAnalyzerVerifier<PreferParamsSpanAnalyzer>.VerifyAnalyzerAsync(source, "net8.0", Expected("Sum"));
+    }
+
+    [Fact]
+    public async Task ExtensionMethod_WithArrayCall_NoDiagnostic()
+    {
+        // Extension overloads in other static classes cannot be enumerated, so an array call blocks.
+        var source = """
+            class D { }
+
+            static class E
+            {
+                public static int Sum(this D d, params int[] values) => values.Length;
+            }
+
+            static class Other
+            {
+                public static int Sum(this D d, object values) => 0;
+            }
+
+            class C
+            {
+                int M(D d, int[] a) => d.Sum(a);
             }
             """;
 
