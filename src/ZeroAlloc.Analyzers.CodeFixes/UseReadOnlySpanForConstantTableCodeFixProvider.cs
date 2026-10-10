@@ -95,7 +95,7 @@ public sealed class UseReadOnlySpanForConstantTableCodeFixProvider : CodeFixProv
 
         // Import System where it is not in scope.
         var spanType = ImportedTypeSyntax
-            .For(document, readOnlySpan, arraySymbol.ElementType, arrayType.ElementType.WithoutTrivia())
+            .For(document, readOnlySpan, arrayType.ElementType.WithoutTrivia())
             .WithTriviaFrom(property.Type);
         property = property.WithType(spanType).WithTriviaFrom(field);
 

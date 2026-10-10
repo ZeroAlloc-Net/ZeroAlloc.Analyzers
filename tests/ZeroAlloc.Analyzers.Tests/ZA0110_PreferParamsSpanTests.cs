@@ -348,6 +348,31 @@ public class ZA0110_PreferParamsSpanTests
     }
 
     [Fact]
+    public async Task GenericMethodWithoutSystemImport_FixAddsIt()
+    {
+        // The element type is the method's own type parameter, whose identity includes the
+        // signature the fix changes.
+        var source = """
+            class C
+            {
+                static int Count<T>(params T[] {|#0:items|}) => items.Length;
+            }
+            """;
+
+        var fixedSource = """
+            using System;
+
+            class C
+            {
+                static int Count<T>(params ReadOnlySpan<T> items) => items.Length;
+            }
+            """;
+
+        await CSharpCodeFixVerifier<PreferParamsSpanAnalyzer, PreferParamsSpanCodeFixProvider>
+            .VerifyCodeFixAsync(source, fixedSource, Expected("Count", elementType: "T", parameter: "items"), compilationEndDiagnostic: true);
+    }
+
+    [Fact]
     public async Task ExposedMethod_OffersNoFix()
     {
         var source = """
