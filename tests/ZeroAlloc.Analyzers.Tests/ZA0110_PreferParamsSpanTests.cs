@@ -535,7 +535,6 @@ public class ZA0110_PreferParamsSpanTests
     [InlineData("static ref readonly int Pass(params int[] values) => ref values[0];")]
     [InlineData("static void Pass(out ReadOnlySpan<int> span, params int[] values) => span = values;")]
     [InlineData("static void Pass(ref ReadOnlySpan<int> span, params int[] values) { }")]
-    [InlineData("static ReadOnlySpan<int> Same(ReadOnlySpan<int> s) => s; static int Pass(params int[] values) => Same(values).Length;")]
     [InlineData("static void Copy(ref ReadOnlySpan<int> d, ReadOnlySpan<int> s) => d = s; static int Pass(params int[] values) { ReadOnlySpan<int> local = default; Copy(ref local, values); return local.Length; }")]
     [InlineData("ref struct R { ReadOnlySpan<int> _s; public void Set(params int[] values) => _s = values; }")]
     [InlineData("ref struct R { ReadOnlySpan<int> _s; public R(params int[] values) { _s = values; } }")]
@@ -548,6 +547,104 @@ public class ZA0110_PreferParamsSpanTests
             class C
             {
                 {{member}}
+            }
+            """;
+
+        await CSharpAnalyzerVerifier<PreferParamsSpanAnalyzer>.VerifyNoDiagnosticAsync(source, "net8.0");
+    }
+
+    [Theory]
+    [InlineData("Same(values).Length")]
+    [InlineData("Same(values)[0]")]
+    [InlineData("Same(values).Slice(1).Length")]
+    [InlineData("Same(Same(values)).Length")]
+    [InlineData("Same(values).ToArray().Length")]
+    [InlineData("Count(values)")]
+    [InlineData("Count(Same(values))")]
+    [InlineData("new Reader(values).Length")]
+    public async Task SpanStaysInScopeThroughCalls_ReportsAndFixes(string body)
+    {
+        // A span returned by a call, or passed by 'in', cannot outlive the method unless it is stored or returned.
+        const string helpers = """
+                static ReadOnlySpan<int> Same(ReadOnlySpan<int> s) => s;
+                static int Count(in ReadOnlySpan<int> s) => s.Length;
+                ref struct Reader { private ReadOnlySpan<int> _s; public Reader(ReadOnlySpan<int> s) => _s = s; public int Length => _s.Length; }
+            """;
+
+        var source = $$"""
+            using System;
+
+            class C
+            {
+            {{helpers}}
+                static int Pass(params int[] {|#0:values|}) => {{body}};
+            }
+            """;
+
+        var fixedSource = $$"""
+            using System;
+
+            class C
+            {
+            {{helpers}}
+                static int Pass(params ReadOnlySpan<int> values) => {{body}};
+            }
+            """;
+
+        await CSharpCodeFixVerifier<PreferParamsSpanAnalyzer, PreferParamsSpanCodeFixProvider>
+            .VerifyCodeFixAsync(
+                source,
+                fixedSource,
+                Expected("Pass"),
+                compilationEndDiagnostic: true,
+                languageVersion: LanguageVersion.CSharp13);
+    }
+
+    [Fact]
+    public async Task SpanThroughForeachOverCall_Reports()
+    {
+        var source = """
+            using System;
+
+            class C
+            {
+                static ReadOnlySpan<int> Same(ReadOnlySpan<int> s) => s;
+
+                static int Pass(params int[] {|#0:values|})
+                {
+                    var total = 0;
+                    foreach (var value in Same(values))
+                        total += value;
+                    return total;
+                }
+            }
+            """;
+
+        await CSharpAnalyzerVerifier<PreferParamsSpanAnalyzer>.VerifyAnalyzerAsync(source, "net8.0", Expected("Pass"));
+    }
+
+    [Theory]
+    // Stored in a local, the span would need scoped-local flow analysis.
+    [InlineData("{ ReadOnlySpan<int> local = Same(values); return local.Length; }")]
+    // Another argument could receive the span through ref or out.
+    [InlineData("{ ReadOnlySpan<int> local = default; Copy(ref local, Same(values)); return local.Length; }")]
+    [InlineData("=> Split(Same(values), out _);")]
+    // A by-ref return could point into the span.
+    [InlineData("=> Ref(Same(values));")]
+    [InlineData("=> Ref(values);")]
+    public async Task SpanThroughCallsMayEscape_NoDiagnostic(string body)
+    {
+        var source = $$"""
+            using System;
+
+            class C
+            {
+                static ReadOnlySpan<int> Same(ReadOnlySpan<int> s) => s;
+                static void Copy(ref ReadOnlySpan<int> d, ReadOnlySpan<int> s) => d = s;
+                static int Split(ReadOnlySpan<int> s, out ReadOnlySpan<int> rest) { rest = s; return 0; }
+                static ref readonly int Ref(in ReadOnlySpan<int> s) => ref s[0];
+
+                static int Pass(params int[] values) {{body}}
             }
             """;
 

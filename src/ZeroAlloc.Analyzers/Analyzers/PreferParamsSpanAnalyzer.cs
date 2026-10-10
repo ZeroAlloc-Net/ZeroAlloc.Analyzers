@@ -303,32 +303,49 @@ public sealed class PreferParamsSpanAnalyzer : DiagnosticAnalyzer
         return true;
     }
 
-    // After the fix the span is scoped to the method. A conversion is only kept when it is passed by
-    // value to a call whose result cannot carry the span and whose other arguments cannot receive it.
-    // Stored in a local or field, returned, or passed by reference, the scoped span could escape.
-    private static bool SpanMayEscape(IParameterReferenceOperation reference)
+    // After the fix the span is scoped to the method. A conversion of the array to a span is kept
+    // only when every value that can carry the span is used up within one expression.
+    private static bool SpanMayEscape(IParameterReferenceOperation reference) =>
+        reference.Parent is IConversionOperation conversion && SpanValueMayEscape(conversion);
+
+    // 'value' is a ref struct that may carry the scoped span. It is used up when it is read, iterated,
+    // or passed by value or by 'in' to a call whose result cannot carry it, or whose ref struct result
+    // is itself used up. Stored in a local or field, returned, or reachable through another ref or out
+    // argument or a by-ref return, the scoped span could escape.
+    private static bool SpanValueMayEscape(IOperation value)
     {
-        if (reference.Parent is not IConversionOperation conversion || conversion.Parent is IForEachLoopOperation)
-            return false;
-
-        if (conversion.Parent is not IArgumentOperation { Parameter.RefKind: RefKind.None } argument)
-            return true;
-
-        var (call, arguments) = argument.Parent switch
+        switch (value.Parent)
         {
-            IInvocationOperation invocation => ((IOperation)invocation, invocation.Arguments),
-            IObjectCreationOperation creation => (creation, creation.Arguments),
-            _ => (null, default),
-        };
-
-        if (call is null
-            || call.Type is { IsRefLikeType: true }
-            || call is IInvocationOperation { TargetMethod: { ReturnsByRef: true } or { ReturnsByRefReadonly: true } })
-        {
-            return true;
+            case IForEachLoopOperation:
+                return false;
+            case IConversionOperation conversion:
+                return conversion.Type is not { IsRefLikeType: true } ? true : SpanValueMayEscape(conversion);
+            case IPropertyReferenceOperation property when property.Instance == value:
+                return property.Property.ReturnsByRef
+                    || property.Type is { IsRefLikeType: true } && SpanValueMayEscape(property);
+            case IInvocationOperation invocation when invocation.Instance == value:
+                return CallResultMayEscape(invocation, invocation.Arguments);
+            case IArgumentOperation { Parameter.RefKind: RefKind.None or RefKind.In } argument:
+                return argument.Parent switch
+                {
+                    IInvocationOperation invocation => CallResultMayEscape(invocation, invocation.Arguments),
+                    IObjectCreationOperation creation => CallResultMayEscape(creation, creation.Arguments),
+                    _ => true,
+                };
+            default:
+                return true;
         }
+    }
 
-        return arguments.Any(other => other.Parameter is { RefKind: RefKind.Ref or RefKind.Out, Type.IsRefLikeType: true });
+    private static bool CallResultMayEscape(IOperation call, ImmutableArray<IArgumentOperation> arguments)
+    {
+        if (call is IInvocationOperation { TargetMethod: { ReturnsByRef: true } or { ReturnsByRefReadonly: true } })
+            return true;
+
+        if (arguments.Any(other => other.Parameter is { RefKind: RefKind.Ref or RefKind.Out, Type.IsRefLikeType: true }))
+            return true;
+
+        return call.Type is { IsRefLikeType: true } && SpanValueMayEscape(call);
     }
 
     // Normal form with an array whose type is not exactly the parameter type: a covariant array, or null.
