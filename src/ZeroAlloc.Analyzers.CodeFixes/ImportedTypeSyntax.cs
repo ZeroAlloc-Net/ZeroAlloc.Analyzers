@@ -20,12 +20,17 @@ internal static class ImportedTypeSyntax
             .WithAdditionalAnnotations(Simplifier.Annotation, Simplifier.AddImportsAnnotation);
 
     /// <summary>
-    /// The qualified name of <paramref name="genericType"/> constructed with
-    /// <paramref name="typeArgument"/>, which is kept as written instead of being qualified.
+    /// The qualified name of <paramref name="genericType"/> with <paramref name="typeArgument"/>,
+    /// which is kept as written instead of being qualified.
     /// </summary>
-    public static TypeSyntax For(Document document, INamedTypeSymbol genericType, ITypeSymbol typeArgumentSymbol, TypeSyntax typeArgument)
+    /// <remarks>
+    /// The symbol annotation names the unconstructed type. A type argument such as a method's own
+    /// type parameter would not resolve after a fix changes that method's signature, and the
+    /// import would then be skipped.
+    /// </remarks>
+    public static TypeSyntax For(Document document, INamedTypeSymbol genericType, TypeSyntax typeArgument)
     {
-        var qualified = For(document, genericType.Construct(typeArgumentSymbol));
+        var qualified = For(document, genericType.OriginalDefinition);
         var generic = qualified.DescendantNodesAndSelf().OfType<GenericNameSyntax>().First();
         return qualified.ReplaceNode(
             generic.TypeArgumentList,

@@ -56,7 +56,7 @@ public sealed class PreferParamsSpanCodeFixProvider : CodeFixProvider
             return document;
 
         var spanType = ImportedTypeSyntax
-            .For(document, readOnlySpan, arraySymbol.ElementType, SyntaxFactory.ParseTypeName(elementType))
+            .For(document, readOnlySpan, SyntaxFactory.ParseTypeName(elementType))
             .WithTriviaFrom(parameter.Type);
         return document.WithSyntaxRoot(root.ReplaceNode(parameter, parameter.WithType(spanType)));
     }
