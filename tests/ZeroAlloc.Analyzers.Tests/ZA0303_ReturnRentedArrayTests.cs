@@ -506,4 +506,60 @@ public class ZA0303_ReturnRentedArrayTests
         await CSharpAnalyzerVerifier<ReturnRentedArrayAnalyzer>
             .VerifyAnalyzerAsync(source, "net8.0");
     }
+
+    [Theory]
+    [InlineData("stream.Keep(buffer); return 0;")]
+    [InlineData("await stream.EnqueueAsync(buffer); return 0;")]
+    public async Task PassedToMethodAddedByStreamSubclass_NoDiagnostic(string statements)
+    {
+        // Only Stream's own members and their overrides are known not to keep the array.
+        var source = $$"""
+            using System;
+            using System.Buffers;
+            using System.IO;
+            using System.Threading.Tasks;
+
+            abstract class QueueStream : Stream
+            {
+                public abstract void Keep(byte[] buffer);
+                public abstract Task EnqueueAsync(byte[] buffer);
+            }
+
+            class C
+            {
+                async Task<int> M(QueueStream stream)
+                {
+                    var buffer = ArrayPool<byte>.Shared.Rent(16);
+                    {{statements}}
+                }
+            }
+            """;
+
+        await CSharpAnalyzerVerifier<ReturnRentedArrayAnalyzer>
+            .VerifyAnalyzerAsync(source, "net8.0");
+    }
+
+    [Fact]
+    public async Task PassedToOverrideOnStreamSubclass_Reports()
+    {
+        var source = """
+            using System;
+            using System.Buffers;
+            using System.IO;
+            using System.Threading.Tasks;
+
+            class C
+            {
+                async Task<int> M(FileStream stream)
+                {
+                    var buffer = {|#0:ArrayPool<byte>.Shared.Rent(16)|};
+                    stream.Write(buffer, 0, 4);
+                    return await stream.ReadAsync(buffer.AsMemory(0, 8));
+                }
+            }
+            """;
+
+        await CSharpAnalyzerVerifier<ReturnRentedArrayAnalyzer>
+            .VerifyAnalyzerAsync(source, "net8.0", Expected("buffer"));
+    }
 }

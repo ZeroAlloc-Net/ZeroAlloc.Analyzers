@@ -16,8 +16,9 @@ public sealed class ReturnRentedArrayAnalyzer : DiagnosticAnalyzer
         DiagnosticSeverity.Warning,
         isEnabledByDefault: true);
 
-    // Methods on these types read or write a passed array without taking ownership of it,
-    // provided the call does not hand back a value that can keep the array alive.
+    // Methods these types declare read or write a passed array without taking ownership of it,
+    // provided the call does not hand back a value that can keep the array alive. Overrides count;
+    // a method a subclass adds does not, because it can keep the array.
     // A returned span keeps the array alive but cannot hand ownership back, so it is no escape.
     private static readonly string[] TrustedTypeNames =
     [
@@ -156,7 +157,7 @@ public sealed class ReturnRentedArrayAnalyzer : DiagnosticAnalyzer
             case IArgumentOperation { Parent: IInvocationOperation call } argument:
                 if (call.TargetMethod.Name == "Return" && known.IsArrayPool(call.TargetMethod.ContainingType))
                     return true;
-                if (argument.Parameter?.RefKind != RefKind.None || !known.IsTrusted(call.TargetMethod.ContainingType))
+                if (argument.Parameter?.RefKind != RefKind.None || !known.IsTrusted(call.TargetMethod))
                     return true;
                 return !IsNonRetainingCall(call, known) && !IsMemoryPassedToAsyncStreamCall(call, known);
             case IArgumentOperation { Parent: IObjectCreationOperation creation }:
@@ -218,7 +219,8 @@ public sealed class ReturnRentedArrayAnalyzer : DiagnosticAnalyzer
     {
         public bool IsArrayPool(ITypeSymbol? type) => InheritsFrom(type, arrayPool);
 
-        public bool IsTrusted(ITypeSymbol? type) => trustedTypes.Any(trusted => InheritsFrom(type, trusted));
+        public bool IsTrusted(IMethodSymbol method) =>
+            trustedTypes.Contains(DeclaringType(method), SymbolEqualityComparer.Default);
 
         public bool IsSpan(ITypeSymbol? type) =>
             type is INamedTypeSymbol named && spanTypes.Contains(named.OriginalDefinition, SymbolEqualityComparer.Default);
@@ -228,9 +230,19 @@ public sealed class ReturnRentedArrayAnalyzer : DiagnosticAnalyzer
 
         public bool IsAsyncStreamCall(IInvocationOperation call) =>
             stream is not null
-            && InheritsFrom(call.TargetMethod.ContainingType, stream)
+            && SymbolEqualityComparer.Default.Equals(DeclaringType(call.TargetMethod), stream)
             && call.TargetMethod.ReturnType is INamedTypeSymbol returnType
             && taskTypes.Contains(returnType.OriginalDefinition, SymbolEqualityComparer.Default);
+
+        // The type that first declared the method, following overrides back to the original.
+        private static INamedTypeSymbol DeclaringType(IMethodSymbol method)
+        {
+            var original = method.OriginalDefinition;
+            while (original.OverriddenMethod is { } overridden)
+                original = overridden.OriginalDefinition;
+
+            return original.ContainingType.OriginalDefinition;
+        }
 
         private static bool InheritsFrom(ITypeSymbol? type, INamedTypeSymbol baseType)
         {
