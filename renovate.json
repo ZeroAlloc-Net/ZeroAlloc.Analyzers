@@ -15,10 +15,7 @@
       "description": "Group Roslyn analyzer packages",
       "matchPackageNames": [
         "Meziantou.Analyzer",
-        "Roslynator.Analyzers",
-        "ErrorProne.NET.CoreAnalyzers",
-        "ErrorProne.NET.Structs",
-        "NetFabric.Hyperlinq.Analyzer"
+        "Roslynator.Analyzers"
       ],
       "groupName": "Roslyn analyzers"
     },
