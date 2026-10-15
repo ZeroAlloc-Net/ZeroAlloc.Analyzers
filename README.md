@@ -43,7 +43,7 @@ string result = sb.ToString();
 
 ## Performance
 
-Roslyn analyzers run incrementally; on a warmed-up build only changed files are re-analyzed, so the steady-state cost is proportional to the number of files you actually edit, not your whole codebase. TFM-gated rules that do not apply to your target framework add no per-file work.
+On a 240-file sample project the package added a median of 1–4% to a `net8.0` build, 4–5% to a `net8.0` + `netstandard2.0` build and 10–23% to a `netstandard2.0` build, relative to the same project built without it; see [Measured overhead](https://github.com/ZeroAlloc-Net/ZeroAlloc.Analyzers/blob/main/docs/performance.md#measured-overhead) for the method, the spread and the harness to reproduce it. Changing any file reruns the analyzers over the whole project; a build with no changes does not run them. TFM-gated rules that do not apply to your target framework add no per-file work.
 
 | Scenario | Rules active |
 |---|---|

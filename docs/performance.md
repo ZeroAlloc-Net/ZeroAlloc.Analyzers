@@ -17,9 +17,82 @@ ZeroAlloc.Analyzers is designed to add negligible overhead to your build. This p
 Every Roslyn diagnostic analyzer runs inside the compiler's analyzer host during the compilation phase. The cost of running analyzers falls into two categories:
 
 - **Analyzer host overhead** — loading the analyzer assembly, calling `Initialize`, and registering syntax/symbol callbacks. This happens once per compilation. ZeroAlloc.Analyzers registers all its callbacks in a single `RegisterCompilationStartAction` per analyzer, so this cost is proportional to the number of analyzer types (43 analyzers), not the number of rules.
-- **Analysis work** — walking syntax trees, resolving symbols, and reporting diagnostics. This runs on every compilation unit that changes. The Roslyn compiler caches unchanged compilation units; analyzers only re-run on files that the compiler already needs to reprocess.
+- **Analysis work** — walking syntax trees, resolving symbols, and reporting diagnostics. In a `dotnet build`, this runs over the whole project every time the compiler runs. Changing one file reruns the compiler for the whole project, and the analyzers with it: the measurements below show the same analyzer time for a one-file edit as for a full rebuild. Only a build in which no input changed skips the compiler, and the analyzers, entirely.
 
 For most projects, analyzer overhead is a small fraction of total build time compared to the C# compiler's own semantic analysis and code generation work.
+
+---
+
+## Measured overhead
+
+Measured 2026-10-15 with ZeroAlloc.Analyzers 1.11.0 on a sample project: 40 copies of six source
+files, 240 files and about 18,000 lines, written to trigger a broad mix of rules. Every figure is
+relative to the same project built without the package.
+
+> Build time is shown as a percentage of the same project's build without the analyzer, because
+> the measuring host is a shared VM; absolute timings are not published.
+
+| Scenario | Build | Overhead, median | Overhead, IQR | ZA analyzer time, share of build |
+|---|---|---:|---:|---:|
+| `netstandard2.0` | full | +10.5% | +2.9% to +19.1% | 12.6% |
+| `netstandard2.0` | one-file edit | +23.0% | +18.3% to +28.8% | 14.8% |
+| `netstandard2.0` | no-op | -3.9% | -6.3% to +11.6% | 0.0% |
+| `net8.0` | full | +2.1% | -2.0% to +6.6% | 6.0% |
+| `net8.0` | one-file edit | +2.9% | +1.0% to +8.7% | 6.5% |
+| `net8.0` | no-op | +5.2% | -11.1% to +10.5% | 0.0% |
+| `net8.0` + `netstandard2.0` | full | +4.3% | +1.5% to +7.2% | 14.1% |
+| `net8.0` + `netstandard2.0` | one-file edit | +5.4% | +3.8% to +9.7% | 18.8% |
+| `net8.0` + `netstandard2.0` | no-op | +2.2% | -4.4% to +5.6% | 0.0% |
+| `net8.0`, ZA0607 and ZA0502 off | full | +1.4% | -0.2% to +4.5% | 5.8% |
+| `net8.0`, ZA0607 and ZA0502 off | one-file edit | +3.8% | -1.2% to +5.7% | 5.7% |
+| `net8.0`, ZA0607 and ZA0502 off | no-op | +0.0% | -4.4% to +5.7% | 0.0% |
+
+How to read it:
+
+- **Overhead** is, for each of 15 interleaved pairs of builds, the build with the package divided
+  by the build without it, minus one. The table gives the median and the interquartile range of
+  those 15 pairs.
+- **ZA analyzer time, share of build** is the time the compiler reports for the ZeroAlloc.Analyzers
+  assembly under `-p:ReportAnalyzer=true`, as a share of the median build without the package. The
+  compiler sums that time across its analysis threads, so it can exceed the wall-clock overhead.
+- A **full** build is `dotnet build --no-incremental`. A **one-file edit** appends a comment to one
+  file and runs `dotnet build`. A **no-op** build runs `dotnet build` with nothing changed.
+- Every build starts its own compiler, with `-p:UseSharedCompilation=false`, so that compiler
+  servers shared with other builds on the machine cannot skew it. That startup is part of the
+  baseline. With a warm compiler server the baseline is shorter, so the same analyzer time is a
+  larger share of it.
+
+What it shows:
+
+- **The overhead is a few percent on `net8.0`** and largest on `netstandard2.0`, where the .NET SDK's
+  own analyzers do not run, so ZeroAlloc's work is a bigger share of a smaller build.
+- **A one-file edit costs as much analyzer time as a full rebuild.** The compiler reruns for the
+  whole project, so every file is analyzed again.
+- **A no-op build costs nothing.** The compiler does not run, ZeroAlloc reports 0 analyzer time, and
+  the remaining differences are noise, within each row's IQR.
+- **Disabling ZA0607 and ZA0502 made no difference this measurement can resolve.** Analyzer time
+  went from 6.0% to 5.8% of the build, and the wall-clock overhead stayed within the noise of the
+  plain `net8.0` row.
+
+The IQRs are wide because the host is a shared virtual machine. The medians are indicative; the
+analyzer-time column is the steadier figure.
+
+Environment: .NET SDK 10.0.402, Debian 13 on Linux 6.12, a KVM virtual machine on a shared host
+with an Intel Core Ultra 7 255H. The run was pinned to four vCPUs.
+
+### Reproducing
+
+The harness is [`tools/build-overhead/measure.sh`](https://github.com/ZeroAlloc-Net/ZeroAlloc.Analyzers/blob/main/tools/build-overhead/measure.sh).
+It builds the sample in a temporary directory outside the repository, once without the package
+and once with it from NuGet, and alternates the two so drift on the machine hits both alike:
+
+```bash
+taskset -c 2-5 tools/build-overhead/measure.sh -n 15 -k 40 -v 1.11.0
+```
+
+`-n` is the number of build pairs per cell, `-k` the number of copies of the sample sources, and
+`-v` the package version. The script prints the table above and keeps the raw per-build CSV. It
+needs the .NET 10 SDK, python3 and network access to NuGet; the 12 cells took about 10 minutes here.
 
 ---
 
@@ -138,4 +211,4 @@ Roslyn analyzers run concurrently by default when `context.EnableConcurrentExecu
 | Generated code directories | Silence all rules via `.editorconfig` glob pattern |
 | Legacy/unmaintained project | Disable the package entirely via `<RunAnalyzers>false</RunAnalyzers>` in a local override |
 
-The recommended approach is to never fully disable ZeroAlloc.Analyzers in CI. The per-rule TFM gating ensures you only pay for rules that are actionable for your target, and the incremental Roslyn caching ensures unchanged files are never re-analyzed.
+The recommended approach is to never fully disable ZeroAlloc.Analyzers in CI. The per-rule TFM gating ensures you only pay for rules that are actionable for your target, and a build in which nothing changed does not run the analyzers at all.
