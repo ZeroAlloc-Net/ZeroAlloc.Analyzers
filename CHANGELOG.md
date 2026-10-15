@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.11.1](https://github.com/ZeroAlloc-Net/ZeroAlloc.Analyzers/compare/v1.11.0...v1.11.1) (2026-10-15)
+
+
+### Documentation
+
+* correct readme samples, claims and links ([#109](https://github.com/ZeroAlloc-Net/ZeroAlloc.Analyzers/issues/109)) ([888b4dd](https://github.com/ZeroAlloc-Net/ZeroAlloc.Analyzers/commit/888b4dda0a78f47129d112bfeb2ff0312ad156d6))
+* measure analyzer build-time overhead and add the harness ([#114](https://github.com/ZeroAlloc-Net/ZeroAlloc.Analyzers/issues/114)) ([eefd079](https://github.com/ZeroAlloc-Net/ZeroAlloc.Analyzers/commit/eefd079a6a5921d7ed6ad6f9c1c500f2da7167e6)), closes [#108](https://github.com/ZeroAlloc-Net/ZeroAlloc.Analyzers/issues/108)
+
+
+### Tests
+
+* pin patched system.security.cryptography.pkcs for cve-2026-84008 ([#111](https://github.com/ZeroAlloc-Net/ZeroAlloc.Analyzers/issues/111)) ([d2e4abb](https://github.com/ZeroAlloc-Net/ZeroAlloc.Analyzers/commit/d2e4abb54c691638b836e07b31d033dd8bbf1e74))
+
 ## [1.11.0](https://github.com/ZeroAlloc-Net/ZeroAlloc.Analyzers/compare/v1.10.0...v1.11.0) (2026-10-10)
 
 
