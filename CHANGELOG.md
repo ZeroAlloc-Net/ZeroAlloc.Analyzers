@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.11.2](https://github.com/ZeroAlloc-Net/ZeroAlloc.Analyzers/compare/v1.11.1...v1.11.2) (2026-10-16)
+
+
+### Documentation
+
+* rewrite the readme as a product page ([#116](https://github.com/ZeroAlloc-Net/ZeroAlloc.Analyzers/issues/116)) ([d3c1c38](https://github.com/ZeroAlloc-Net/ZeroAlloc.Analyzers/commit/d3c1c38d19c5e1a7d4bab98e9ac09a8d4a3de878))
+
 ## [1.11.1](https://github.com/ZeroAlloc-Net/ZeroAlloc.Analyzers/compare/v1.11.0...v1.11.1) (2026-10-15)
 
 
