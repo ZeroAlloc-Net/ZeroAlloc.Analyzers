@@ -69,56 +69,20 @@ jobs:
       # its push triggers the release PR's checks like release-please's own.
       RELEASE_BOT_PRIVATE_KEY: ${{ secrets.RELEASE_BOT_PRIVATE_KEY }}
 
+  # Builds the release tag, packs every packable project, checks the versions inside the
+  # packages, pushes them, and waits until nuget.org serves every one of them. Shared from
+  # ZeroAlloc-Net/.github so a fix there reaches every repository; see ZeroAlloc-Net/.github#49.
   publish:
     needs: release-please
     if: needs.release-please.outputs.releases_created == 'true'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          ref: ${{ needs.release-please.outputs.tag_name }}
-          fetch-depth: 0
-
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v6
-        with:
-          # Installs the SDK global.json pins. Without it the job never installs
-          # that SDK at all and only works when the runner image happens to ship one
-          # satisfying the pin, which is how a publish failed on a lagging image.
-          global-json-file: global.json
-          dotnet-version: 10.0.x
-
-      - name: Restore tools
-        run: dotnet tool restore
-
-      - name: Build
-        run: dotnet build --configuration Release -p:Version=${{ needs.release-please.outputs.version }}
-
-      - name: Test
-        run: dotnet test --configuration Release --no-build --verbosity normal
-
-      - name: Pack every src package
-        run: |
-          # Discovered, not listed. A hardcoded list silently omits any newly added
-          # package: the release still goes green and the package never appears on
-          # NuGet. Defaulting to pack means a new src project ships unless it opts
-          # out, so the failure mode is a surplus package someone notices rather
-          # than a missing one nobody does.
-          for csproj in src/*/*.csproj; do
-            if grep -q "<IsPackable>false</IsPackable>" "$csproj"; then
-              echo "Skipping $csproj (IsPackable=false)"
-              continue
-            fi
-            echo "Packing $csproj"
-            dotnet pack "$csproj" --configuration Release --no-build --output ./artifacts -p:Version=${{ needs.release-please.outputs.version }}
-          done
-          if ! ls ./artifacts/*.nupkg >/dev/null 2>&1; then
-            echo "::error::no packages were produced"
-            exit 1
-          fi
-
-      - name: Push to NuGet
-        run: dotnet nuget push ./artifacts/*.nupkg --source https://api.nuget.org/v3/index.json --api-key ${{ secrets.NUGET_API_KEY }} --skip-duplicate
-
-      - name: Push to GitHub Packages
-        run: dotnet nuget push ./artifacts/*.nupkg --source https://nuget.pkg.github.com/ZeroAlloc-Net/index.json --api-key ${{ secrets.GITHUB_TOKEN }} --skip-duplicate
+    uses: ZeroAlloc-Net/.github/.github/workflows/publish.yml@main
+    with:
+      tag: ${{ needs.release-please.outputs.tag_name }}
+      version: ${{ needs.release-please.outputs.version }}
+      solution: ZeroAlloc.Analyzers.slnx
+      # This repository publishes to GitHub Packages and does not attach its packages
+      # to the GitHub release.
+      github-packages: true
+      release-assets: false
+    secrets:
+      NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}

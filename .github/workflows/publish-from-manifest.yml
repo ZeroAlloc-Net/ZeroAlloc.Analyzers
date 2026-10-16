@@ -1,77 +1,64 @@
 name: Publish from manifest
 
-# Manually-triggered rescue workflow that packs and pushes every src/* csproj
-# at the version recorded in .release-please-manifest.json. Designed for the
-# case where release-please created the GitHub release/tag but the publish
-# job missed a sub-package (e.g. a hardcoded pack list went stale or a new
-# sub-package landed without a CI update). --skip-duplicate makes re-runs safe.
+# Manual rescue: publishes the release recorded in .release-please-manifest.json when the
+# automatic publish did not, for example after a dropped push event or a failed push.
+# It runs the same shared workflow as the release itself, against the release tag, so it
+# rebuilds exactly the released code even after main has moved on, and it confirms that
+# every package reached nuget.org. --skip-duplicate makes re-runs safe.
 #
-# Walks src/*/*.csproj — no hardcoded list, survives sub-package additions
-# automatically.
-#
-# Usage: gh workflow run publish-from-manifest.yml --repo ZeroAlloc-Net/<REPO>
+# Usage:
+#   gh workflow run publish-from-manifest.yml --repo ZeroAlloc-Net/ZeroAlloc.Analyzers
+#   gh workflow run publish-from-manifest.yml --repo ZeroAlloc-Net/ZeroAlloc.Analyzers -f dry-run=true
 
 on:
   workflow_dispatch:
+    inputs:
+      dry-run:
+        description: 'Build, pack and verify only; push nothing.'
+        required: false
+        type: boolean
+        default: false
 
 permissions:
-  contents: read
+  contents: write
+  packages: write
 
 jobs:
-  publish:
+  resolve:
     runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.manifest.outputs.tag }}
+      version: ${{ steps.manifest.outputs.version }}
     steps:
       - uses: actions/checkout@v7
-        with:
-          fetch-depth: 0
 
-      - uses: actions/setup-dotnet@v6
-        with:
-          # Installs the SDK global.json pins. Without it the job never installs
-          # that SDK at all and only works when the runner image happens to ship one
-          # satisfying the pin, which is how a publish failed on a lagging image.
-          global-json-file: global.json
-          dotnet-version: 10.0.x
-
-      - name: Read manifest version
-        id: version
+      - name: Read the manifest version and find its tag
+        id: manifest
         run: |
-          version=$(jq -r '.["."]' .release-please-manifest.json)
+          set -euo pipefail
+          version=$(jq -r '."." // empty' .release-please-manifest.json)
+          if [ -z "$version" ]; then
+            echo "::error::.release-please-manifest.json has no \".\" entry"
+            exit 1
+          fi
+          tag="v$version"
+          if ! git ls-remote --exit-code --tags origin "refs/tags/$tag" >/dev/null; then
+            echo "::error::the manifest says $version but tag $tag does not exist; nothing was released to rescue"
+            exit 1
+          fi
+          echo "Rescuing $tag"
           echo "version=$version" >> "$GITHUB_OUTPUT"
-          echo "Manifest version: $version"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
 
-      - name: Restore
-        run: dotnet restore
-
-      - name: Build
-        # -p:Version must be passed HERE, not only to pack. The pack step below runs
-        # --no-build and overrides PackageVersion alone, so a build without this leaves
-        # the assembly stamped with a fallback version while the package claims the real
-        # one. See ZeroAlloc-Net/.github#26.
-        run: dotnet build --configuration Release --no-restore -p:Version=${{ steps.version.outputs.version }}
-
-      - name: Test
-        run: dotnet test --configuration Release --no-build
-
-      - name: Pack every src/* csproj
-        env:
-          VERSION: ${{ steps.version.outputs.version }}
-        run: |
-          mkdir -p ./nupkg
-          # Walk src/*/*.csproj — pack every project. NuGet's --skip-duplicate
-          # makes re-pushes idempotent. dotnet pack on a project with
-          # IsPackable=false produces no .nupkg, so generators/internals are
-          # naturally excluded.
-          for csproj in src/*/*.csproj; do
-            echo "Packing $csproj at version $VERSION"
-            dotnet pack "$csproj" -c Release --no-build \
-              -p:PackageVersion="$VERSION" -o ./nupkg
-          done
-          ls -la ./nupkg
-
-      - name: Push to NuGet
-        run: |
-          dotnet nuget push ./nupkg/*.nupkg \
-            --source https://api.nuget.org/v3/index.json \
-            --api-key ${{ secrets.NUGET_API_KEY }} \
-            --skip-duplicate
+  publish:
+    needs: resolve
+    uses: ZeroAlloc-Net/.github/.github/workflows/publish.yml@main
+    with:
+      tag: ${{ needs.resolve.outputs.tag }}
+      version: ${{ needs.resolve.outputs.version }}
+      solution: ZeroAlloc.Analyzers.slnx
+      github-packages: true
+      release-assets: false
+      dry-run: ${{ inputs.dry-run }}
+    secrets:
+      NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
