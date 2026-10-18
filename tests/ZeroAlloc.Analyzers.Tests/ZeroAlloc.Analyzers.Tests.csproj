@@ -19,7 +19,7 @@
          9.0.6. No NuGet.Packaging release depends on a patched Pkcs yet; 7.9.0 still takes 8.0.1.
          9.0.21 is the patched release of the net9.0 line. Remove this pin once
          Microsoft.CodeAnalysis.Analyzer.Testing ships a patched dependency. -->
-    <PackageReference Include="System.Security.Cryptography.Pkcs" Version="9.0.21" />
+    <PackageReference Include="System.Security.Cryptography.Pkcs" Version="10.0.13" />
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="5.9.0" />
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" Version="5.9.0" />
   </ItemGroup>
