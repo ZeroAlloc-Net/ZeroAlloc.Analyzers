@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.11.3](https://github.com/ZeroAlloc-Net/ZeroAlloc.Analyzers/compare/v1.11.2...v1.11.3) (2026-10-23)
+
+
+### Bug Fixes
+
+* **ZA0601:** skip LINQ that runs once in a loop header ([#127](https://github.com/ZeroAlloc-Net/ZeroAlloc.Analyzers/issues/127)) ([7f86448](https://github.com/ZeroAlloc-Net/ZeroAlloc.Analyzers/commit/7f86448341646912ca6258f0335bd5f49cd3cfa8))
+
 ## [1.11.2](https://github.com/ZeroAlloc-Net/ZeroAlloc.Analyzers/compare/v1.11.1...v1.11.2) (2026-10-16)
 
 
