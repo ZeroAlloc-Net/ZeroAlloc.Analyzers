@@ -111,16 +111,12 @@ public sealed class AvoidLinqInLoopsAnalyzer : DiagnosticAnalyzer
 
     private static bool IsInsideLoop(SyntaxNode node)
     {
+        var child = node;
         var current = node.Parent;
         while (current != null)
         {
-            if (current is ForStatementSyntax
-                or ForEachStatementSyntax
-                or WhileStatementSyntax
-                or DoStatementSyntax)
-            {
+            if (IsRepeatedPartOfLoop(current, child))
                 return true;
-            }
 
             // Stop at method/lambda boundaries
             if (current is MethodDeclarationSyntax
@@ -130,9 +126,31 @@ public sealed class AvoidLinqInLoopsAnalyzer : DiagnosticAnalyzer
                 return false;
             }
 
+            child = current;
             current = current.Parent;
         }
 
         return false;
+    }
+
+    // True when 'child' is a part of 'loop' that is evaluated on every iteration.
+    // A foreach collection expression and a for statement's declaration and initializers
+    // run once, so they do not count; an enclosing loop further up still can.
+    private static bool IsRepeatedPartOfLoop(SyntaxNode loop, SyntaxNode child)
+    {
+        switch (loop)
+        {
+            case CommonForEachStatementSyntax forEach:
+                return child != forEach.Expression;
+            case ForStatementSyntax forStatement:
+                return child != forStatement.Declaration
+                       && !(child is ExpressionSyntax initializer
+                            && forStatement.Initializers.Contains(initializer));
+            case WhileStatementSyntax:
+            case DoStatementSyntax:
+                return true;
+            default:
+                return false;
+        }
     }
 }

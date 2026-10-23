@@ -33,6 +33,8 @@ flowchart LR
 
 Every LINQ method call (`FirstOrDefault`, `Where`, `Any`, `Count`, etc.) allocates an iterator object or enumerator on the heap. When called inside a loop body, this multiplies the allocation count by the iteration count — a loop over 10,000 items that calls `FirstOrDefault` on each iteration produces 10,000 iterator allocations that the GC must eventually collect. Extract the query outside the loop, or replace with a pre-built dictionary for O(1) lookup instead of O(N) linear search.
 
+The rule only fires for code that runs on every iteration: the body of `for`, `foreach`, `while` and `do` loops, and the condition and incrementers of a `for` loop. Parts that run once are not reported: the collection expression of a `foreach`, such as `items.OrderBy(x => x.Key)` in `foreach (var item in items.OrderBy(x => x.Key))`, and the declaration and initializers of a `for` loop. They are still reported when the loop itself sits inside another loop.
+
 ### Before
 
 ```csharp
