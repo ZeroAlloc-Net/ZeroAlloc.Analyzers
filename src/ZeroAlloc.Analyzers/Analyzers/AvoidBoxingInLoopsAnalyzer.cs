@@ -33,7 +33,7 @@ public sealed class AvoidBoxingInLoopsAnalyzer : DiagnosticAnalyzer
     {
         var invocation = (InvocationExpressionSyntax)context.Node;
 
-        if (!IsInsideLoop(invocation))
+        if (!LoopHelper.IsInsideLoop(invocation))
             return;
 
         var symbolInfo = context.SemanticModel.GetSymbolInfo(invocation, context.CancellationToken);
@@ -95,29 +95,4 @@ public sealed class AvoidBoxingInLoopsAnalyzer : DiagnosticAnalyzer
         return false;
     }
 
-    private static bool IsInsideLoop(SyntaxNode node)
-    {
-        var current = node.Parent;
-        while (current != null)
-        {
-            if (current is ForStatementSyntax
-                or ForEachStatementSyntax
-                or WhileStatementSyntax
-                or DoStatementSyntax)
-            {
-                return true;
-            }
-
-            if (current is MethodDeclarationSyntax
-                or LocalFunctionStatementSyntax
-                or LambdaExpressionSyntax)
-            {
-                return false;
-            }
-
-            current = current.Parent;
-        }
-
-        return false;
-    }
 }

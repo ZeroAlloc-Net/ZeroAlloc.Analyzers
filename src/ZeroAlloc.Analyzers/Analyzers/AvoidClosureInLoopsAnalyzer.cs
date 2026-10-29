@@ -31,7 +31,7 @@ public sealed class AvoidClosureInLoopsAnalyzer : DiagnosticAnalyzer
     {
         var lambda = (LambdaExpressionSyntax)context.Node;
 
-        if (!IsInsideLoop(lambda))
+        if (!LoopHelper.IsInsideLoop(lambda))
             return;
 
         // Get the data flow analysis for the lambda body
@@ -93,29 +93,4 @@ public sealed class AvoidClosureInLoopsAnalyzer : DiagnosticAnalyzer
         return builder.ToImmutable();
     }
 
-    private static bool IsInsideLoop(SyntaxNode node)
-    {
-        var current = node.Parent;
-        while (current != null)
-        {
-            if (current is ForStatementSyntax
-                or ForEachStatementSyntax
-                or WhileStatementSyntax
-                or DoStatementSyntax)
-            {
-                return true;
-            }
-
-            if (current is MethodDeclarationSyntax
-                or LocalFunctionStatementSyntax
-                or LambdaExpressionSyntax)
-            {
-                return false;
-            }
-
-            current = current.Parent;
-        }
-
-        return false;
-    }
 }
