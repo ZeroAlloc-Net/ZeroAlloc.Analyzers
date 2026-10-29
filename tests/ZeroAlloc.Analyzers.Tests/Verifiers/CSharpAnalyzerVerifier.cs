@@ -90,6 +90,33 @@ public static class CSharpAnalyzerVerifier<TAnalyzer>
         await test.RunAsync();
     }
 
+    /// <summary>Analyzes with .NET 8 reference assemblies and unsafe code allowed.</summary>
+    public static async Task VerifyUnsafeAnalyzerAsync(
+        string source,
+        params DiagnosticResult[] expected)
+    {
+        var test = new CSharpAnalyzerTest<TAnalyzer, DefaultVerifier>
+        {
+            TestCode = source,
+            ReferenceAssemblies = ReferenceAssemblies.Net.Net80,
+        };
+
+        test.TestState.AnalyzerConfigFiles.Add(
+            ("/.globalconfig", """
+                is_global = true
+                build_property.TargetFramework = net8.0
+                """));
+
+        test.SolutionTransforms.Add((solution, projectId) =>
+        {
+            var options = (CSharpCompilationOptions)solution.GetProject(projectId)!.CompilationOptions!;
+            return solution.WithProjectCompilationOptions(projectId, options.WithAllowUnsafe(true));
+        });
+
+        test.ExpectedDiagnostics.AddRange(expected);
+        await test.RunAsync();
+    }
+
     private static async Task RunAsync(
         string source,
         string targetFramework,
