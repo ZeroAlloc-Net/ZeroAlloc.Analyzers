@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.12.0](https://github.com/ZeroAlloc-Net/ZeroAlloc.Analyzers/compare/v1.11.3...v1.12.0) (2026-10-29)
+
+
+### Features
+
+* measure nested structs, Nullable, Guid, TimeSpan, native ints, pointers and fixed buffers, plus DateTime, DateTimeOffset and decimal on net8.0+, in ZA1601 ([e131796](https://github.com/ZeroAlloc-Net/ZeroAlloc.Analyzers/commit/e131796f15aed45a70939ff9249ab641e4f82d06))
+
+
+### Bug Fixes
+
+* ignore loop headers that run once in the in-loop rules ([#134](https://github.com/ZeroAlloc-Net/ZeroAlloc.Analyzers/issues/134)) ([9f7ee24](https://github.com/ZeroAlloc-Net/ZeroAlloc.Analyzers/commit/9f7ee24a9d518128d78ba71ce5a2dc37d6e653a4))
+* stop ZA1601 reporting structs with a field-like event or a primary constructor, whose hidden fields it could not see ([e131796](https://github.com/ZeroAlloc-Net/ZeroAlloc.Analyzers/commit/e131796f15aed45a70939ff9249ab641e4f82d06))
+
 ## [1.11.3](https://github.com/ZeroAlloc-Net/ZeroAlloc.Analyzers/compare/v1.11.2...v1.11.3) (2026-10-23)
 
 
