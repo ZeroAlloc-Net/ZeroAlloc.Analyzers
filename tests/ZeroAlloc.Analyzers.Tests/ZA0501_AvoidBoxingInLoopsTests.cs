@@ -153,4 +153,167 @@ public class ZA0501_AvoidBoxingInLoopsTests
         await CSharpAnalyzerVerifier<AvoidBoxingInLoopsAnalyzer>
             .VerifyAnalyzerAsync(source, "net8.0", expected);
     }
+
+    [Fact]
+    public async Task LoopHeaderForeachCollection_NoDiagnostic()
+    {
+        var source = """
+            using System.Collections.Generic;
+
+            class C
+            {
+                static object[] W(object o) => null!;
+                static bool B(object o) => true;
+
+                void M(int n)
+                {
+                    foreach (var o in W(n))
+                    {
+                    }
+                }
+            }
+            """;
+
+        await CSharpAnalyzerVerifier<AvoidBoxingInLoopsAnalyzer>
+            .VerifyNoDiagnosticAsync(source, "net8.0");
+    }
+
+    [Fact]
+    public async Task LoopHeaderForeachCollectionInsideOuterLoop_Reports()
+    {
+        var source = """
+            using System.Collections.Generic;
+
+            class C
+            {
+                static object[] W(object o) => null!;
+                static bool B(object o) => true;
+
+                void M(int n)
+                {
+                    for (int j = 0; j < 10; j++)
+                    {
+                        foreach (var o in W({|#0:n|}))
+                        {
+                        }
+                    }
+                }
+            }
+            """;
+
+        var expected = CSharpAnalyzerVerifier<AvoidBoxingInLoopsAnalyzer>
+            .Diagnostic(DiagnosticIds.AvoidBoxingInLoops)
+            .WithLocation(0)
+            .WithArguments("int", "object");
+
+        await CSharpAnalyzerVerifier<AvoidBoxingInLoopsAnalyzer>
+            .VerifyAnalyzerAsync(source, "net8.0", expected);
+    }
+
+    [Fact]
+    public async Task LoopHeaderForDeclaration_NoDiagnostic()
+    {
+        var source = """
+            using System.Collections.Generic;
+
+            class C
+            {
+                static object[] W(object o) => null!;
+                static bool B(object o) => true;
+
+                void M(int n)
+                {
+                    for (var a = W(n); a == null; n++)
+                    {
+                    }
+                }
+            }
+            """;
+
+        await CSharpAnalyzerVerifier<AvoidBoxingInLoopsAnalyzer>
+            .VerifyNoDiagnosticAsync(source, "net8.0");
+    }
+
+    [Fact]
+    public async Task LoopHeaderForInitializer_NoDiagnostic()
+    {
+        var source = """
+            using System.Collections.Generic;
+
+            class C
+            {
+                static object[] W(object o) => null!;
+                static bool B(object o) => true;
+
+                void M(int n)
+                {
+                    for (W(n); n < 0; n++)
+                    {
+                    }
+                }
+            }
+            """;
+
+        await CSharpAnalyzerVerifier<AvoidBoxingInLoopsAnalyzer>
+            .VerifyNoDiagnosticAsync(source, "net8.0");
+    }
+
+    [Fact]
+    public async Task LoopHeaderForCondition_Reports()
+    {
+        var source = """
+            using System.Collections.Generic;
+
+            class C
+            {
+                static object[] W(object o) => null!;
+                static bool B(object o) => true;
+
+                void M(int n)
+                {
+                    for (int i = 0; B({|#0:i|}); i++)
+                    {
+                    }
+                }
+            }
+            """;
+
+        var expected = CSharpAnalyzerVerifier<AvoidBoxingInLoopsAnalyzer>
+            .Diagnostic(DiagnosticIds.AvoidBoxingInLoops)
+            .WithLocation(0)
+            .WithArguments("int", "object");
+
+        await CSharpAnalyzerVerifier<AvoidBoxingInLoopsAnalyzer>
+            .VerifyAnalyzerAsync(source, "net8.0", expected);
+    }
+
+    [Fact]
+    public async Task DeconstructingForeachBody_Reports()
+    {
+        var source = """
+            using System.Collections.Generic;
+
+            class C
+            {
+                static object[] W(object o) => null!;
+                static bool B(object o) => true;
+
+                void M(int n, Dictionary<int, int> map)
+                {
+                    foreach (var (k, v) in map)
+                    {
+                        W({|#0:k|});
+                    }
+                }
+            }
+            """;
+
+        var expected = CSharpAnalyzerVerifier<AvoidBoxingInLoopsAnalyzer>
+            .Diagnostic(DiagnosticIds.AvoidBoxingInLoops)
+            .WithLocation(0)
+            .WithArguments("int", "object");
+
+        await CSharpAnalyzerVerifier<AvoidBoxingInLoopsAnalyzer>
+            .VerifyAnalyzerAsync(source, "net8.0", expected);
+    }
 }

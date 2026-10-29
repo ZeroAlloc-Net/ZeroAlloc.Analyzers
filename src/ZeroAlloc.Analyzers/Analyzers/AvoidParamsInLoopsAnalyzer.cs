@@ -47,7 +47,7 @@ public sealed class AvoidParamsInLoopsAnalyzer : DiagnosticAnalyzer
         var invocation = (IInvocationOperation)context.Operation;
 
         // Check if inside a loop first (cheap syntactic check)
-        if (!IsInsideLoop(invocation.Syntax))
+        if (!LoopHelper.IsInsideLoop(invocation.Syntax))
             return;
 
         foreach (var argument in invocation.Arguments)
@@ -115,30 +115,4 @@ public sealed class AvoidParamsInLoopsAnalyzer : DiagnosticAnalyzer
         };
     }
 
-    private static bool IsInsideLoop(SyntaxNode node)
-    {
-        var current = node.Parent;
-        while (current != null)
-        {
-            if (current is ForStatementSyntax
-                or ForEachStatementSyntax
-                or WhileStatementSyntax
-                or DoStatementSyntax)
-            {
-                return true;
-            }
-
-            // Stop at method/lambda boundaries
-            if (current is MethodDeclarationSyntax
-                or LocalFunctionStatementSyntax
-                or LambdaExpressionSyntax)
-            {
-                return false;
-            }
-
-            current = current.Parent;
-        }
-
-        return false;
-    }
 }

@@ -77,7 +77,7 @@ public sealed class AvoidLinqInLoopsAnalyzer : DiagnosticAnalyzer
             return;
 
         // Must be inside a loop
-        if (!IsInsideLoop(invocation))
+        if (!LoopHelper.IsInsideLoop(invocation))
             return;
 
         // Verify the method is from System.Linq.Enumerable or System.Linq.Queryable
@@ -107,50 +107,5 @@ public sealed class AvoidLinqInLoopsAnalyzer : DiagnosticAnalyzer
         return ns.Name == "Linq"
                && ns.ContainingNamespace?.Name == "System"
                && ns.ContainingNamespace.ContainingNamespace?.IsGlobalNamespace == true;
-    }
-
-    private static bool IsInsideLoop(SyntaxNode node)
-    {
-        var child = node;
-        var current = node.Parent;
-        while (current != null)
-        {
-            if (IsRepeatedPartOfLoop(current, child))
-                return true;
-
-            // Stop at method/lambda boundaries
-            if (current is MethodDeclarationSyntax
-                or LocalFunctionStatementSyntax
-                or LambdaExpressionSyntax)
-            {
-                return false;
-            }
-
-            child = current;
-            current = current.Parent;
-        }
-
-        return false;
-    }
-
-    // True when 'child' is a part of 'loop' that is evaluated on every iteration.
-    // A foreach collection expression and a for statement's declaration and initializers
-    // run once, so they do not count; an enclosing loop further up still can.
-    private static bool IsRepeatedPartOfLoop(SyntaxNode loop, SyntaxNode child)
-    {
-        switch (loop)
-        {
-            case CommonForEachStatementSyntax forEach:
-                return child != forEach.Expression;
-            case ForStatementSyntax forStatement:
-                return child != forStatement.Declaration
-                       && !(child is ExpressionSyntax initializer
-                            && forStatement.Initializers.Contains(initializer));
-            case WhileStatementSyntax:
-            case DoStatementSyntax:
-                return true;
-            default:
-                return false;
-        }
     }
 }

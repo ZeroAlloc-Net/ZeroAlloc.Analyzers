@@ -37,36 +37,10 @@ public sealed class AvoidStringConcatInLoopAnalyzer : DiagnosticAnalyzer
             return;
 
         // Check if inside a loop
-        if (!IsInsideLoop(assignment))
+        if (!LoopHelper.IsInsideLoop(assignment))
             return;
 
         context.ReportDiagnostic(Diagnostic.Create(Rule, assignment.GetLocation()));
     }
 
-    private static bool IsInsideLoop(SyntaxNode node)
-    {
-        var current = node.Parent;
-        while (current != null)
-        {
-            if (current is ForStatementSyntax
-                or ForEachStatementSyntax
-                or WhileStatementSyntax
-                or DoStatementSyntax)
-            {
-                return true;
-            }
-
-            // Stop at method/lambda boundaries
-            if (current is MethodDeclarationSyntax
-                or LocalFunctionStatementSyntax
-                or LambdaExpressionSyntax)
-            {
-                return false;
-            }
-
-            current = current.Parent;
-        }
-
-        return false;
-    }
 }

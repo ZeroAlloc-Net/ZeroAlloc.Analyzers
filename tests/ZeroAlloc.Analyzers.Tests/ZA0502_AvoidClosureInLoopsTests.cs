@@ -108,4 +108,155 @@ public class ZA0502_AvoidClosureInLoopsTests
         await CSharpAnalyzerVerifier<AvoidClosureInLoopsAnalyzer>
             .VerifyNoDiagnosticAsync(source, "net8.0");
     }
+
+    [Fact]
+    public async Task LoopHeaderForeachCollection_NoDiagnostic()
+    {
+        var source = """
+            using System.Collections.Generic;
+            using System.Linq;
+
+            class C
+            {
+                void M(List<int> items, int n)
+                {
+                    foreach (var v in items.Where(x => x > n))
+                    {
+                    }
+                }
+            }
+            """;
+
+        await CSharpAnalyzerVerifier<AvoidClosureInLoopsAnalyzer>
+            .VerifyNoDiagnosticAsync(source, "net8.0");
+    }
+
+    [Fact]
+    public async Task LoopHeaderForeachCollectionInsideOuterLoop_Reports()
+    {
+        var source = """
+            using System.Collections.Generic;
+            using System.Linq;
+
+            class C
+            {
+                void M(List<int> items, int n)
+                {
+                    for (int j = 0; j < 10; j++)
+                    {
+                        foreach (var v in items.Where(x {|#0:=>|} x > n))
+                        {
+                        }
+                    }
+                }
+            }
+            """;
+
+        var expected = CSharpAnalyzerVerifier<AvoidClosureInLoopsAnalyzer>
+            .Diagnostic(DiagnosticIds.AvoidClosureInLoops)
+            .WithLocation(0)
+            .WithArguments("n");
+
+        await CSharpAnalyzerVerifier<AvoidClosureInLoopsAnalyzer>
+            .VerifyAnalyzerAsync(source, "net8.0", expected);
+    }
+
+    [Fact]
+    public async Task LoopHeaderForDeclaration_NoDiagnostic()
+    {
+        var source = """
+            using System.Collections.Generic;
+            using System.Linq;
+
+            class C
+            {
+                void M(List<int> items, int n)
+                {
+                    for (var q = items.Where(x => x > n); q == null; n++)
+                    {
+                    }
+                }
+            }
+            """;
+
+        await CSharpAnalyzerVerifier<AvoidClosureInLoopsAnalyzer>
+            .VerifyNoDiagnosticAsync(source, "net8.0");
+    }
+
+    [Fact]
+    public async Task LoopHeaderForInitializer_NoDiagnostic()
+    {
+        var source = """
+            using System.Collections.Generic;
+            using System.Linq;
+
+            class C
+            {
+                void M(List<int> items, int n)
+                {
+                    for (items.Count(x => x > n); n < 0; n++)
+                    {
+                    }
+                }
+            }
+            """;
+
+        await CSharpAnalyzerVerifier<AvoidClosureInLoopsAnalyzer>
+            .VerifyNoDiagnosticAsync(source, "net8.0");
+    }
+
+    [Fact]
+    public async Task LoopHeaderForCondition_Reports()
+    {
+        var source = """
+            using System.Collections.Generic;
+            using System.Linq;
+
+            class C
+            {
+                void M(List<int> items, int n)
+                {
+                    for (int i = 0; items.Any(x {|#0:=>|} x > n); i++)
+                    {
+                    }
+                }
+            }
+            """;
+
+        var expected = CSharpAnalyzerVerifier<AvoidClosureInLoopsAnalyzer>
+            .Diagnostic(DiagnosticIds.AvoidClosureInLoops)
+            .WithLocation(0)
+            .WithArguments("n");
+
+        await CSharpAnalyzerVerifier<AvoidClosureInLoopsAnalyzer>
+            .VerifyAnalyzerAsync(source, "net8.0", expected);
+    }
+
+    [Fact]
+    public async Task DeconstructingForeachBody_Reports()
+    {
+        var source = """
+            using System.Collections.Generic;
+            using System.Linq;
+
+            class C
+            {
+                void M(List<int> items, int n, Dictionary<int, int> map)
+                {
+                    foreach (var (k, v) in map)
+                    {
+                        items.Where(x {|#0:=>|} x > n);
+                    }
+                }
+            }
+            """;
+
+        var expected = CSharpAnalyzerVerifier<AvoidClosureInLoopsAnalyzer>
+            .Diagnostic(DiagnosticIds.AvoidClosureInLoops)
+            .WithLocation(0)
+            .WithArguments("n");
+
+        await CSharpAnalyzerVerifier<AvoidClosureInLoopsAnalyzer>
+            .VerifyAnalyzerAsync(source, "net8.0", expected);
+    }
 }

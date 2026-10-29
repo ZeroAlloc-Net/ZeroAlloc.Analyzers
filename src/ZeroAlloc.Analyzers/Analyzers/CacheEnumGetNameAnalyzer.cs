@@ -32,7 +32,7 @@ public sealed class CacheEnumGetNameAnalyzer : DiagnosticAnalyzer
         var invocation = (InvocationExpressionSyntax)context.Node;
 
         // Must be inside a loop
-        if (!IsInsideLoop(invocation))
+        if (!LoopHelper.IsInsideLoop(invocation))
             return;
 
         // Get the method symbol
@@ -64,30 +64,4 @@ public sealed class CacheEnumGetNameAnalyzer : DiagnosticAnalyzer
                && ns.ContainingNamespace.IsGlobalNamespace;
     }
 
-    private static bool IsInsideLoop(SyntaxNode node)
-    {
-        var current = node.Parent;
-        while (current != null)
-        {
-            if (current is ForStatementSyntax
-                or ForEachStatementSyntax
-                or WhileStatementSyntax
-                or DoStatementSyntax)
-            {
-                return true;
-            }
-
-            // Stop at method/lambda boundaries
-            if (current is MethodDeclarationSyntax
-                or LocalFunctionStatementSyntax
-                or LambdaExpressionSyntax)
-            {
-                return false;
-            }
-
-            current = current.Parent;
-        }
-
-        return false;
-    }
 }

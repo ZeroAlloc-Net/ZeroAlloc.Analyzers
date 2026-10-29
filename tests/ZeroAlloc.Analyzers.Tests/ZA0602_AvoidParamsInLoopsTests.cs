@@ -180,4 +180,161 @@ public class ZA0602_AvoidParamsInLoopsTests
         await CSharpAnalyzerVerifier<AvoidParamsInLoopsAnalyzer>
             .VerifyAnalyzerAsync(LoopCall("params int[] xs", "i", true), "net8.0", Expected());
     }
+
+    [Fact]
+    public async Task LoopHeaderForeachCollection_NoDiagnostic()
+    {
+        var source = """
+            using System.Collections.Generic;
+
+            class C
+            {
+                static int[] Make(params int[] xs) => xs;
+
+                void M(int n)
+                {
+                    foreach (var v in Make(1, 2, 3))
+                    {
+                    }
+                }
+            }
+            """;
+
+        await CSharpAnalyzerVerifier<AvoidParamsInLoopsAnalyzer>
+            .VerifyNoDiagnosticAsync(source, "net8.0");
+    }
+
+    [Fact]
+    public async Task LoopHeaderForeachCollectionInsideOuterLoop_Reports()
+    {
+        var source = """
+            using System.Collections.Generic;
+
+            class C
+            {
+                static int[] Make(params int[] xs) => xs;
+
+                void M(int n)
+                {
+                    for (int j = 0; j < 10; j++)
+                    {
+                        foreach (var v in {|#0:Make(1, 2, 3)|})
+                        {
+                        }
+                    }
+                }
+            }
+            """;
+
+        var expected = CSharpAnalyzerVerifier<AvoidParamsInLoopsAnalyzer>
+            .Diagnostic(DiagnosticIds.AvoidParamsInLoops)
+            .WithLocation(0)
+            .WithArguments("Make");
+
+        await CSharpAnalyzerVerifier<AvoidParamsInLoopsAnalyzer>
+            .VerifyAnalyzerAsync(source, "net8.0", expected);
+    }
+
+    [Fact]
+    public async Task LoopHeaderForDeclaration_NoDiagnostic()
+    {
+        var source = """
+            using System.Collections.Generic;
+
+            class C
+            {
+                static int[] Make(params int[] xs) => xs;
+
+                void M(int n)
+                {
+                    for (var a = Make(1, 2, 3); a == null; n++)
+                    {
+                    }
+                }
+            }
+            """;
+
+        await CSharpAnalyzerVerifier<AvoidParamsInLoopsAnalyzer>
+            .VerifyNoDiagnosticAsync(source, "net8.0");
+    }
+
+    [Fact]
+    public async Task LoopHeaderForInitializer_NoDiagnostic()
+    {
+        var source = """
+            using System.Collections.Generic;
+
+            class C
+            {
+                static int[] Make(params int[] xs) => xs;
+
+                void M(int n)
+                {
+                    for (Make(1, 2, 3); n < 0; n++)
+                    {
+                    }
+                }
+            }
+            """;
+
+        await CSharpAnalyzerVerifier<AvoidParamsInLoopsAnalyzer>
+            .VerifyNoDiagnosticAsync(source, "net8.0");
+    }
+
+    [Fact]
+    public async Task LoopHeaderForCondition_Reports()
+    {
+        var source = """
+            using System.Collections.Generic;
+
+            class C
+            {
+                static int[] Make(params int[] xs) => xs;
+
+                void M(int n)
+                {
+                    for (int i = 0; {|#0:Make(1, 2, 3)|}.Length > i; i++)
+                    {
+                    }
+                }
+            }
+            """;
+
+        var expected = CSharpAnalyzerVerifier<AvoidParamsInLoopsAnalyzer>
+            .Diagnostic(DiagnosticIds.AvoidParamsInLoops)
+            .WithLocation(0)
+            .WithArguments("Make");
+
+        await CSharpAnalyzerVerifier<AvoidParamsInLoopsAnalyzer>
+            .VerifyAnalyzerAsync(source, "net8.0", expected);
+    }
+
+    [Fact]
+    public async Task DeconstructingForeachBody_Reports()
+    {
+        var source = """
+            using System.Collections.Generic;
+
+            class C
+            {
+                static int[] Make(params int[] xs) => xs;
+
+                void M(int n, Dictionary<int, int> map)
+                {
+                    foreach (var (k, v) in map)
+                    {
+                        {|#0:Make(k, 2, 3)|};
+                    }
+                }
+            }
+            """;
+
+        var expected = CSharpAnalyzerVerifier<AvoidParamsInLoopsAnalyzer>
+            .Diagnostic(DiagnosticIds.AvoidParamsInLoops)
+            .WithLocation(0)
+            .WithArguments("Make");
+
+        await CSharpAnalyzerVerifier<AvoidParamsInLoopsAnalyzer>
+            .VerifyAnalyzerAsync(source, "net8.0", expected);
+    }
 }
