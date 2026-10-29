@@ -20,7 +20,22 @@ CPUs never read individual bytes from memory — they pull in 64-byte **cache li
 
 Each field in a struct is aligned to its natural boundary — an `int` to 4 bytes, a `long`/`double` to 8. When a small field precedes a larger one, the compiler inserts invisible **padding** bytes to satisfy that alignment, and the struct is finally rounded up to the size of its largest member. Declaring fields from largest alignment to smallest packs them tightly and shrinks the struct. A smaller struct touches fewer cache lines when stored in an array or collection, so hot loops over it take fewer cache misses.
 
-This rule only fires on structs with the **compiler-default layout** (no explicit `[StructLayout]` attribute) made up entirely of fixed-size primitive or enum fields, so the suggested reorder is always safe and the byte counts are deterministic across platforms. Structs with an explicit `[StructLayout]` are left alone — that attribute usually signals intentional ordering for interop or serialization.
+This rule only fires on structs with the **compiler-default layout** (no explicit `[StructLayout]` attribute), and only when it knows the size and alignment of every field. Structs with an explicit `[StructLayout]` are left alone, since that attribute usually signals intentional ordering for interop or serialization. The rule knows these field types:
+
+| Field type | Size / alignment |
+|---|---|
+| `bool`, `byte`, `sbyte`, `char`, `short`, `ushort`, `int`, `uint`, `float`, `long`, `ulong`, `double`, and enums | their natural size |
+| `nint`, `nuint`, pointers, function pointers | 8 / 8 (sizes assume a 64-bit target) |
+| `fixed` buffers | element size × length / element alignment |
+| `T?` (`Nullable<T>`) of a known `T` | laid out as `{ bool; T }` |
+| `Guid` | 16 / 4 |
+| `TimeSpan` | 8 / 8 |
+| `DateTime`, `DateTimeOffset`, `decimal` (net8.0 and later only) | 8 / 8, 16 / 8, 16 / 8 |
+| structs declared in your own source, including `[InlineArray]` structs | worked out from their fields, recursively |
+
+Auto-property backing fields count, at the position of the property. Anything else makes the rule stay silent: a reference-type field (including a field-like `event`, whose backing field is a delegate) gives the struct automatic layout, so the runtime picks the order and declaration order no longer matters. Structs from referenced assemblies, type parameters, and structs whose primary constructor parameters may be captured into hidden fields are also skipped. `DateTime`, `DateTimeOffset` and `decimal` are skipped on .NET Framework, where their layout differs.
+
+The sizes in the message are measured for the struct **as declared**. A nested struct keeps its own declared size; if it wastes padding too, it gets its own ZA1601.
 
 ### Before
 
@@ -43,6 +58,30 @@ struct Particle
     public long Id;      // offset 0
     public byte Flags;   // offset 8
     public byte Team;    // offset 9 (struct rounded up to 16)
+}
+```
+
+### Nested structs
+
+```csharp
+struct Vec3 { public float X, Y, Z; }           // 12 bytes, aligned to 4
+
+// ❌ 32 bytes: 3 padding bytes after Kind, 7 after Flags
+struct Body
+{
+    public byte Kind;     // offset 0
+    public Vec3 Position; // offset 4
+    public long Id;       // offset 16
+    public byte Flags;    // offset 24 => struct rounded up to 32
+}
+
+// ✓ 24 bytes
+struct Body
+{
+    public long Id;       // offset 0
+    public Vec3 Position; // offset 8
+    public byte Kind;     // offset 20
+    public byte Flags;    // offset 21 => rounded up to 24
 }
 ```
 
