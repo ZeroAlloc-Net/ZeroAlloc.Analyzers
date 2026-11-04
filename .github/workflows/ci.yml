@@ -67,6 +67,13 @@ jobs:
       - name: Test
         run: dotnet test --no-build -c Release --verbosity normal --logger "trx;LogFileName=test-results.trx" --settings coverage.runsettings --results-directory TestResults
 
+      # Fails when line coverage is below the floor, or when codecov.yml would let a
+      # drop in coverage pass quietly. Shared from ci-baseline.
+      - name: Coverage gate
+        uses: MarcelRoozekrans/ci-baseline/actions/coverage-gate@v1
+        with:
+          reports: TestResults/**/coverage.cobertura.xml
+
       - name: Upload test results
         if: always()
         uses: actions/upload-artifact@v7
