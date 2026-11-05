@@ -64,8 +64,12 @@ jobs:
         # CI package claimed the SDK default 1.0.0. See ZeroAlloc-Net/.github#36.
         run: dotnet build --no-restore -c Release -p:Version=${{ steps.gitversion.outputs.semver }}
 
+      # --collect "XPlat Code Coverage" makes vstest load coverlet's in-proc collector,
+      # which writes every module's hits when the test session ends. With the runsettings
+      # file alone, hits are written only by ProcessExit handlers, and vstest kills a test
+      # host that has not exited 100 ms after the run, so a module can read 0 at random.
       - name: Test
-        run: dotnet test --no-build -c Release --verbosity normal --logger "trx;LogFileName=test-results.trx" --settings coverage.runsettings --results-directory TestResults
+        run: dotnet test --no-build -c Release --verbosity normal --logger "trx;LogFileName=test-results.trx" --collect "XPlat Code Coverage" --settings coverage.runsettings --results-directory TestResults
 
       # Fails when line coverage is below the floor, or when codecov.yml would let a
       # drop in coverage pass quietly. Shared from ci-baseline.
