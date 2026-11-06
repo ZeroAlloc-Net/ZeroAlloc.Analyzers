@@ -53,10 +53,6 @@ jobs:
   publish:
     needs: resolve
     uses: ZeroAlloc-Net/.github/.github/workflows/publish.yml@main
-    permissions:
-      contents: write
-      packages: write
-      id-token: write
     with:
       tag: ${{ needs.resolve.outputs.tag }}
       version: ${{ needs.resolve.outputs.version }}
@@ -64,8 +60,26 @@ jobs:
       github-packages: true
       release-assets: false
       dry-run: ${{ inputs.dry-run }}
-      # Trusted publishing: set the NUGET_USER variable and add a trusted publisher policy on
-      # nuget.org for this repository and workflow to stop using the NUGET_API_KEY secret below.
-      nuget-user: ${{ vars.NUGET_USER }}
-    secrets:
-      NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
+      # nuget.org checks a trusted publisher against the workflow that runs the job, so the push is the
+      # push job below, not this reusable workflow.
+      push: false
+
+  push:
+    needs: [resolve, publish]
+    if: ${{ !inputs.dry-run }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
+      id-token: write
+    steps:
+      # Runs as steps of this job, so nuget.org sees this workflow file in the OIDC claim, which is
+      # what the trusted publisher policy names. The policy is created by the account in NUGET_USER.
+      - uses: ZeroAlloc-Net/.github/.github/actions/nuget-push@main
+        with:
+          tag: ${{ needs.resolve.outputs.tag }}
+          version: ${{ needs.resolve.outputs.version }}
+          nuget-user: ${{ vars.NUGET_USER }}
+          nuget-api-key: ${{ secrets.NUGET_API_KEY }}
+          github-packages: true
+          release-assets: false
