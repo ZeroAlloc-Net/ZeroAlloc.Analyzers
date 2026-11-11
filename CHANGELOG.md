@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.13.0](https://github.com/ZeroAlloc-Net/ZeroAlloc.Analyzers/compare/v1.12.0...v1.13.0) (2026-11-11)
+
+
+### Features
+
+* add .NET 11 support ([#141](https://github.com/ZeroAlloc-Net/ZeroAlloc.Analyzers/issues/141)) ([5880818](https://github.com/ZeroAlloc-Net/ZeroAlloc.Analyzers/commit/58808181042d9158b8aed182fd3be74312f89701))
+
+
+### Documentation
+
+* add context7.json to claim the library on Context7 ([#143](https://github.com/ZeroAlloc-Net/ZeroAlloc.Analyzers/issues/143)) ([841755b](https://github.com/ZeroAlloc-Net/ZeroAlloc.Analyzers/commit/841755b198c275bda0ddf6e9483fc076dcfea9ff))
+
 ## [1.12.0](https://github.com/ZeroAlloc-Net/ZeroAlloc.Analyzers/compare/v1.11.3...v1.12.0) (2026-10-29)
 
 
