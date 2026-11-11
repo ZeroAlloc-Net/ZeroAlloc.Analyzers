@@ -1,0 +1,9 @@
+{
+  "url": "https://context7.com/zeroalloc-net/zeroalloc.analyzers",
+  "public_key": "pk_0ZxbEj7DDouHQWKuUE9FO",
+  "excludeFolders": ["tests", "benchmarks", "BenchmarkDotNet.Artifacts", "artifacts", "assets", "tools", "scripts", "bin", "obj", "node_modules"],
+  "excludeFiles": ["CHANGELOG.md", "LICENSE", "CONTRIBUTING.md", "DOCUMENTATION_GUIDE.md", "DOCUMENTATION_STATUS.md", "PHASE5_FINAL_REVIEW.md"],
+  "rules": [
+    "NuGet packages are published under the ZeroAlloc. prefix; use the package names shown in the README install section."
+  ]
+}
