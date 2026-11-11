@@ -69,7 +69,7 @@ jobs:
       # file alone, hits are written only by ProcessExit handlers, and vstest kills a test
       # host that has not exited 100 ms after the run, so a module can read 0 at random.
       - name: Test
-        run: dotnet test --no-build -c Release --verbosity normal --logger "trx;LogFileName=test-results.trx" --collect "XPlat Code Coverage" --settings coverage.runsettings --results-directory TestResults
+        run: dotnet test --no-build -c Release --verbosity normal --logger "trx;LogFilePrefix=test-results" --collect "XPlat Code Coverage" --settings coverage.runsettings --results-directory TestResults
 
       # Fails when line coverage is below the floor, or when codecov.yml would let a
       # drop in coverage pass quietly. Shared from ci-baseline.
