@@ -1,8 +1,8 @@
 {
   "url": "https://context7.com/zeroalloc-net/zeroalloc.analyzers",
   "public_key": "pk_0ZxbEj7DDouHQWKuUE9FO",
-  "excludeFolders": ["tests", "benchmarks", "BenchmarkDotNet.Artifacts", "artifacts", "assets", "tools", "scripts", "bin", "obj", "node_modules"],
-  "excludeFiles": ["CHANGELOG.md", "LICENSE", "CONTRIBUTING.md", "DOCUMENTATION_GUIDE.md", "DOCUMENTATION_STATUS.md", "PHASE5_FINAL_REVIEW.md"],
+  "excludeFolders": ["tests", "benchmarks", "BenchmarkDotNet.Artifacts", "artifacts", "assets", "tools", "scripts", "bin", "obj", "node_modules", "superpowers", "plans", "specs", "research", "design", "contributing", "screenshots", "regression-screenshots"],
+  "excludeFiles": ["CHANGELOG.md", "LICENSE", "CONTRIBUTING.md", "AGENTS.md", "CLAUDE.md", "DOCUMENTATION_GUIDE.md", "DOCUMENTATION_STATUS.md", "PHASE5_FINAL_REVIEW.md", "backlog.md", "roadmap.md", "releasing.md", "DEVELOPMENT.md", "DEPLOYMENT.md", "WEBSITE_INTEGRATION.md", "sidebars.js", "docusaurus.config.example.js", "regression-report-2026-04-21-0900.md", "regression-report-2026-04-22-0846.md"],
   "rules": [
     "NuGet packages are published under the ZeroAlloc. prefix; use the package names shown in the README install section."
   ]
