@@ -6,6 +6,7 @@ public class TfmHelperTests
     [InlineData("net8.0", true)]
     [InlineData("net9.0", true)]
     [InlineData("net10.0", true)]
+    [InlineData("net11.0", true)]
     [InlineData("net7.0", false)]
     [InlineData("net6.0", false)]
     [InlineData("netstandard2.0", false)]

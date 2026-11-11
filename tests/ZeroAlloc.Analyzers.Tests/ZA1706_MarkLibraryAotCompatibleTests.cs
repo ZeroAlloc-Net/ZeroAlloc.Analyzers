@@ -34,6 +34,7 @@ public class ZA1706_MarkLibraryAotCompatibleTests
     [InlineData("net8.0")]
     [InlineData("net9.0")]
     [InlineData("net10.0")]
+    [InlineData("net11.0")]
     [InlineData("net8.0-windows")]
     public async Task Net8OrLaterLibraryWithoutAotProperty_Reports(string targetFramework)
     {
