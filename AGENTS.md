@@ -18,7 +18,7 @@ CI job `build` in `ci.yml`:
 
 ```bash
 dotnet tool restore
-dotnet dotnet-gitversion /output json /showvariable SemVer   # prints $VERSION
+VERSION=$(dotnet dotnet-gitversion /output json /showvariable SemVer)
 dotnet restore
 dotnet build --no-restore -c Release -p:Version=$VERSION
 dotnet test --no-build -c Release --verbosity normal --logger "trx;LogFilePrefix=test-results" --collect "XPlat Code Coverage" --settings coverage.runsettings --results-directory TestResults
