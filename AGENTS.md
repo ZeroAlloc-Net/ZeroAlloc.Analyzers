@@ -42,7 +42,7 @@ dotnet test --no-build -c Release --filter "FullyQualifiedName~ZA0105"
 - The `System.Security.Cryptography.Pkcs` pin in the test project is a CVE override with a removal condition in its comment. Leave it until that condition holds.
 - Contributor walk-throughs: `docs/contributing/adding-a-rule.md`, `architecture.md`, `tfm-awareness.md`.
 
-<!-- org-core:start sha256=c42b83cb821d67a5547aafe02bbf9d3f36a7d19379a5d378bc38d452b7db8451 (generated from docker-nuc scripts/agents-md/org-core-zeroalloc.md; do not edit here) -->
+<!-- org-core:start sha256=295bb965a292aae97d5f2608dfafb8bff097e736fb7656ef760b142a9a66db68 (generated from docker-nuc scripts/agents-md/org-core-zeroalloc.md; do not edit here) -->
 ## Org rules
 
 These rules hold in every ZeroAlloc-Net repo. Each library makes two promises: it works under
@@ -61,7 +61,7 @@ snapshots and the generated output.
 | Pattern | Instead |
 |---|---|
 | `async ValueTask` that only awaits and returns | `return new ValueTask<T>(inner.XAsync(ct));` |
-| `Task.WhenAll` over tasks that already completed | check `IsCompletedSuccessfully`, await only what is pending |
+| `Task.WhenAll` over tasks that already completed | skip the await only when every task has `IsCompletedSuccessfully` (`Status == TaskStatus.RanToCompletion` on `netstandard2.0`); otherwise `await Task.WhenAll`, which also reports faults of completed tasks |
 | `TagList` or log `params object[]` built before `Enabled`/`IsEnabled` | check first, or `LoggerMessage.Define` |
 | event args allocated before checking for subscribers | copy the handler to a local, check, then allocate |
 | `new Serializer()` / `new Utf8JsonWriter()` per call | cache stateless instances, reuse writers with `Reset` |
@@ -69,7 +69,7 @@ snapshots and the generated output.
 | `ToArray()` / `ToList()` copies between layers | pass `ReadOnlyMemory<T>` or spans, copy once at most |
 | LINQ in emitted code | emit `for` loops |
 | `yield` iterator behind a public `GetEnumerator` | public struct enumerator, from the first release |
-| `Enum.IsDefined(typeof(E), v)`, `decimal.GetBits(v)` | `Enum.IsDefined<E>`, `v.Scale` |
+| `Enum.IsDefined(typeof(E), v)`, `decimal.GetBits(v)` | `Enum.IsDefined<E>`, `v.Scale` (`Scale` needs .NET 7 or later: keep a target-specific alternative on older targets and on `netstandard2.0` and `netstandard2.1`) |
 | configuration parsed or read per call | parse once and cache |
 | an `AsyncLocal` write per call | pass state explicitly |
 | a capturing lambda or method-group delegate per call | cache the delegate in a field, or a static lambda |
@@ -99,7 +99,8 @@ path, a one-time cache fill.
   honest `[RequiresUnreferencedCode]` / `[RequiresDynamicCode]`. Every suppression must be true;
   remove dead ones.
 - The AOT smoke sample publishes with `TreatWarningsAsErrors=true`. If a third-party warning really
-  blocks it, exclude only that code with `WarningsNotAsErrors` and name the assembly.
+  blocks it, use a narrow, justified suppression for that warning. `WarningsNotAsErrors` selects codes,
+  not assemblies, so it would also downgrade the same warning from generated code.
 - The smoke runs the hot path of every package in the repo. A package without a smoke has unknown AOT
   status. Adapters run against real services in CI service containers; publish-only is a last resort.
   App and template smokes make authenticated requests.
