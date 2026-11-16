@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.13.1](https://github.com/ZeroAlloc-Net/ZeroAlloc.Analyzers/compare/v1.13.0...v1.13.1) (2026-11-16)
+
+
+### Bug Fixes
+
+* embed PDBs so Go to Definition shows the package source ([#153](https://github.com/ZeroAlloc-Net/ZeroAlloc.Analyzers/issues/153)) ([6cb2054](https://github.com/ZeroAlloc-Net/ZeroAlloc.Analyzers/commit/6cb205446d353f0cb2855452a33f8f3070653e66))
+
 ## [1.13.0](https://github.com/ZeroAlloc-Net/ZeroAlloc.Analyzers/compare/v1.12.0...v1.13.0) (2026-11-11)
 
 
