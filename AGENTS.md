@@ -42,7 +42,7 @@ dotnet test --no-build -c Release --filter "FullyQualifiedName~ZA0105"
 - The `System.Security.Cryptography.Pkcs` pin in the test project is a CVE override with a removal condition in its comment. Leave it until that condition holds.
 - Contributor walk-throughs: `docs/contributing/adding-a-rule.md`, `architecture.md`, `tfm-awareness.md`.
 
-<!-- org-core:start sha256=295bb965a292aae97d5f2608dfafb8bff097e736fb7656ef760b142a9a66db68 (generated from docker-nuc scripts/agents-md/org-core-zeroalloc.md; do not edit here) -->
+<!-- org-core:start sha256=8faf417fa86f11bd8ad9bc98dfa4683fba44e440291e84c6cb9b0ec3ca0c0e7e (generated from docker-nuc scripts/agents-md/org-core-zeroalloc.md; do not edit here) -->
 ## Org rules
 
 These rules hold in every ZeroAlloc-Net repo. Each library makes two promises: it works under
@@ -60,7 +60,7 @@ snapshots and the generated output.
 
 | Pattern | Instead |
 |---|---|
-| `async ValueTask` that only awaits and returns | `return new ValueTask<T>(inner.XAsync(ct));` |
+| `async ValueTask` that only awaits and returns | `return new ValueTask<T>(inner.XAsync(ct));` when the method only forwards a `Task<T>` (return a forwarded `ValueTask<T>` directly). The wrapper stores a synchronous throw in the returned task; the direct return lets it, and the cancellation status of the callee, reach the caller. Keep the `async` wrapper when callers depend on either |
 | `Task.WhenAll` over tasks that already completed | skip the await only when every task has `IsCompletedSuccessfully` (`Status == TaskStatus.RanToCompletion` on `netstandard2.0`); otherwise `await Task.WhenAll`, which also reports faults of completed tasks |
 | `TagList` or log `params object[]` built before `Enabled`/`IsEnabled` | check first, or `LoggerMessage.Define` |
 | event args allocated before checking for subscribers | copy the handler to a local, check, then allocate |
@@ -69,7 +69,7 @@ snapshots and the generated output.
 | `ToArray()` / `ToList()` copies between layers | pass `ReadOnlyMemory<T>` or spans, copy once at most |
 | LINQ in emitted code | emit `for` loops |
 | `yield` iterator behind a public `GetEnumerator` | public struct enumerator, from the first release |
-| `Enum.IsDefined(typeof(E), v)`, `decimal.GetBits(v)` | `Enum.IsDefined<E>`, `v.Scale` (`Scale` needs .NET 7 or later: keep a target-specific alternative on older targets and on `netstandard2.0` and `netstandard2.1`) |
+| `Enum.IsDefined(typeof(E), v)` with a boxed value, `decimal.GetBits(v)` to read the scale | `Enum.IsDefined<E>(v)` when `v` has type `E` (.NET 5 or later, so not on .NET Framework, `netstandard2.0`, `netstandard2.1` or .NET Core 3.1); `v.Scale` for a scale read only (.NET 7 or later, never for the coefficient or sign). Keep the old call on older targets |
 | configuration parsed or read per call | parse once and cache |
 | an `AsyncLocal` write per call | pass state explicitly |
 | a capturing lambda or method-group delegate per call | cache the delegate in a field, or a static lambda |
