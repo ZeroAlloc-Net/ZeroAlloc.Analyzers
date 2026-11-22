@@ -7,7 +7,10 @@ version="${1:?pass the version of the packed ZeroAlloc.Analyzers package}"
 cd "$(dirname "$0")/Consumer"
 dotnet --version
 log="$(mktemp)"
-trap 'rm -f "$log"' EXIT
+# A fresh global-packages folder, so a repack under the same version cannot be served from the cache.
+packages="$(mktemp -d)"
+trap 'rm -rf "$log" "$packages"' EXIT
+export NUGET_PACKAGES="$packages"
 dotnet build --no-incremental -c Release -p:ZeroAllocAnalyzersVersion="$version" 2>&1 | tee "$log"
 if ! grep -q "warning ZA0105" "$log"; then
   echo "FAIL: the build did not report ZA0105, so the analyzer did not run" >&2
