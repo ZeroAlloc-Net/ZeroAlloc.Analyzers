@@ -8,7 +8,7 @@ cd "$(dirname "$0")/Consumer"
 dotnet --version
 log="$(mktemp)"
 trap 'rm -f "$log"' EXIT
-dotnet build -c Release -p:ZeroAllocAnalyzersVersion="$version" 2>&1 | tee "$log"
+dotnet build --no-incremental -c Release -p:ZeroAllocAnalyzersVersion="$version" 2>&1 | tee "$log"
 if ! grep -q "warning ZA0105" "$log"; then
   echo "FAIL: the build did not report ZA0105, so the analyzer did not run" >&2
   exit 1
