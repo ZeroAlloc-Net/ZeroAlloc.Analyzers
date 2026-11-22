@@ -1,0 +1,35 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    Builds a consumer of the packed ZeroAlloc.Analyzers package with the oldest supported .NET SDK
+    band, 10.0.1xx, whose compiler is Roslyn 5.0. The package ships ZeroAlloc.Analyzers.dll and
+    ZeroAlloc.Analyzers.CodeFixes.dll in analyzers/dotnet/cs. If either references a newer Roslyn
+    than the compiler that loads it, the compiler skips it with CS9057, which is an error here,
+    and no rule runs.
+
+    Program.cs breaks rule ZA0105 on purpose. A skipped analyzer would also leave the build clean,
+    so ../check.sh builds this project, then fails unless the build output reports ZA0105.
+
+    The parent folder's global.json pins the 10.0.1xx band with rollForward latestPatch, so a
+    newer band cannot stand in for it. Run locally with a 10.0.1xx SDK installed:
+      dotnet pack src/ZeroAlloc.Analyzers.Package -c Release -o artifacts -p:Version=9.9.9-local.sha$(git rev-parse HEAD | head -c7)
+      tests/ZeroAlloc.Analyzers.Sdk10Smoke/check.sh 9.9.9-local.sha$(git rev-parse HEAD | head -c7)
+    Not part of the solution; the sdk10-consumer job in ci.yml runs it.
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <IsPackable>false</IsPackable>
+    <WarningsAsErrors>$(WarningsAsErrors);CS8032;CS9057</WarningsAsErrors>
+  </PropertyGroup>
+
+  <Target Name="RequireZeroAllocAnalyzersVersion" BeforeTargets="CollectPackageReferences">
+    <Error Condition="'$(ZeroAllocAnalyzersVersion)' == ''"
+           Text="Pass the version of the packed package: -p:ZeroAllocAnalyzersVersion=..." />
+  </Target>
+
+  <ItemGroup>
+    <PackageReference Include="ZeroAlloc.Analyzers" Version="[$(ZeroAllocAnalyzersVersion)]" PrivateAssets="all" />
+  </ItemGroup>
+</Project>

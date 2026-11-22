@@ -32,8 +32,26 @@ dotnet build -c Release -p:Version=1.2.3
 dotnet test --no-build -c Release --filter "FullyQualifiedName~ZA0105"
 ```
 
+CI job `sdk10-consumer` needs a 10.0.1xx SDK; `tests/ZeroAlloc.Analyzers.Sdk10Smoke/global.json` pins
+10.0.100 with `rollForward: latestPatch`, so a newer band cannot stand in for it. The consumer breaks
+ZA0105 on purpose, and `check.sh` fails unless the build output reports it, since a skipped analyzer
+would leave the build clean:
+
+```bash
+dotnet pack src/ZeroAlloc.Analyzers.Package -c Release -o artifacts -p:Version=9.9.9-local.sha$(git rev-parse --short HEAD)
+tests/ZeroAlloc.Analyzers.Sdk10Smoke/check.sh 9.9.9-local.sha$(git rev-parse --short HEAD)
+```
+
+CI job `roslyn-floor` calls the shared `roslyn-floor.yml` from ZeroAlloc-Net/.github: it packs the
+solution and fails when a packed DLL references Roslyn above 5.0.0.
+
 ## Conventions and gotchas
 
+- The analyzers reference `Microsoft.CodeAnalysis.CSharp` and `.CSharp.Workspaces` 5.0.0, the compiler of SDK
+  band 10.0.1xx, the oldest supported SDK. A compiler older than the Roslyn the DLL references skips the
+  analyzers with `CS9057`, and no rule runs. The shared Renovate preset holds them below 5.1. If a newer
+  Roslyn API is needed, change the code; raise the floor only together with the minimum SDK. The test
+  project may use a newer Roslyn.
 - `TreatWarningsAsErrors` is on for the whole repo, and the analyzer projects run their own rules on themselves. A new warning in repo code fails the build.
 - Pack fails with ZAVERSION001 or ZAVERSION002 unless the version is passed as `-p:Version` to every command that builds, including the `dotnet build` before `pack --no-build`. Do not work around the guard.
 - Rules read the consumer's target framework through `CompilerVisibleProperty` items in `buildTransitive/ZeroAlloc.Analyzers.props` and `TfmHelper`. A rule that suggests an API newer than the consumer's target must stand down on older targets. A new MSBuild property a rule reads needs an entry in that props file.

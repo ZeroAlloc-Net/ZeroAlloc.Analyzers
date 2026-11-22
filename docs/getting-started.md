@@ -33,6 +33,8 @@ Or add the `PackageReference` directly in your `.csproj` file:
 
 The `<PrivateAssets>all</PrivateAssets>` setting ensures the analyzer is not propagated as a transitive dependency to consumers of your package — it stays a private development-time tool.
 
+The analyzers need the .NET 10 SDK 10.0.100 or later, or Visual Studio 2026 or later. They are built against Roslyn 5.0, and an older compiler skips them with warning CS9057, after which no rule reports anything. Version 1.13.1 was built against Roslyn 5.9 and does not load in SDK 10.0.1xx; on .NET 10, use 1.13.2 or later.
+
 ---
 
 ## First Use
