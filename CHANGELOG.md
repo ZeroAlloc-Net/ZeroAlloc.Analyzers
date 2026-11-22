@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.13.2](https://github.com/ZeroAlloc-Net/ZeroAlloc.Analyzers/compare/v1.13.1...v1.13.2) (2026-11-22)
+
+
+### Bug Fixes
+
+* build the analyzers against Roslyn 5.0 so every .NET 10 SDK loads it ([#158](https://github.com/ZeroAlloc-Net/ZeroAlloc.Analyzers/issues/158)) ([64b33b3](https://github.com/ZeroAlloc-Net/ZeroAlloc.Analyzers/commit/64b33b376320c11360f8653f555fa040c94aaea0))
+
 ## [1.13.1](https://github.com/ZeroAlloc-Net/ZeroAlloc.Analyzers/compare/v1.13.0...v1.13.1) (2026-11-16)
 
 
