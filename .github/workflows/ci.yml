@@ -103,6 +103,37 @@ jobs:
           name: nuget-package
           path: src/ZeroAlloc.Analyzers.Package/bin/Release/*.nupkg
 
+  # The analyzers run in the consumer's compiler. An analyzer built against a newer Roslyn than
+  # that compiler is skipped with CS9057 and reports nothing. This builds a net10.0 consumer of the
+  # packed package with the oldest supported SDK band, 10.0.1xx, whose compiler is Roslyn 5.0, and
+  # fails unless the build reports ZA0105. See ZeroAlloc-Net/.github#77.
+  sdk10-consumer:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v6
+        with:
+          # global.json's SDK packs the repository; the smoke folder's own global.json pins
+          # 10.0.100 with rollForward latestPatch, so a newer band cannot stand in for 10.0.1xx.
+          global-json-file: global.json
+          dotnet-version: 10.0.1xx
+
+      - name: Pack
+        run: |
+          version="9.9.9-local.sha${GITHUB_SHA::7}"
+          echo "ANALYZERS_VERSION=$version" >> "$GITHUB_ENV"
+          dotnet pack src/ZeroAlloc.Analyzers.Package/ZeroAlloc.Analyzers.Package.csproj -c Release -o artifacts -p:Version="$version"
+
+      - name: Build the consumer and check the analyzer ran
+        run: tests/ZeroAlloc.Analyzers.Sdk10Smoke/check.sh "$ANALYZERS_VERSION"
+
+  # Fails when a packed DLL references Roslyn above 5.0.0, the compiler of SDK 10.0.1xx.
+  roslyn-floor:
+    uses: ZeroAlloc-Net/.github/.github/workflows/roslyn-floor.yml@main
+
   # A release PR must mark everything it releases as shipped: the analyzer rules in
   # AnalyzerReleases.Unshipped.md and the API in every PublicAPI.Unshipped.txt. The
   # ship-release-tracking job in release-please.yml commits that move onto the branch;

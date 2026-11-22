@@ -1,0 +1,4 @@
+<Project>
+  <!-- Stops the import chain: this project stands in for a consumer, so the repository's
+       build settings, analyzers and pack checks must not apply to it. -->
+</Project>
